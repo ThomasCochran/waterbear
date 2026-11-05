@@ -171,31 +171,119 @@ idle_preset() {  # idle_preset short|normal|long  -> sets IDLE_* (saver lock off
 
 # ---------------------------------------------------------------------------
 # Update: snapshot → system update → newest Waterbear → re-apply configs
+# Every step that fails is collected and shown in a red box at the very end (and as a
+# desktop notification, and in ~/.cache/waterbear/last-update.log), so it can't scroll by unseen.
 # ---------------------------------------------------------------------------
-waterbear_update() {
-    need_sudo
-    [[ -f /etc/snapper/configs/root ]] && snapshot_now "before-update-$(date +%F)"
-    step "Updating the system"
-    sudo pacman -Syu --noconfirm
-    if command -v yay > /dev/null; then step "Updating AUR apps"; yay -Sua --noconfirm || warn "Some AUR updates failed."; fi
+WB_UPDATE_LOG="${XDG_CACHE_HOME:-$HOME/.cache}/waterbear/last-update.log"
 
-    step "Updating Waterbear (you have $WB_VERSION)"
+# Gets the newest Waterbear into $WB_HOME. On failure: prints why, sets WB_UPDATE_ERR, returns 1.
+wb_self_update() {
+    WB_UPDATE_ERR=""
+    local out
     if [[ -d "$WB_HOME/.git" ]]; then
-        git -C "$WB_HOME" pull --ff-only || warn "Couldn't update Waterbear (local changes? network?)."
+        # Files edited (or added) by hand inside the install folder make `git pull` refuse to update
+        local dirty; dirty=$(git -C "$WB_HOME" status --porcelain 2>&1) || true
+        if [[ -n "$dirty" ]]; then
+            warn "Waterbear's install folder has files that were changed by hand:"
+            sed 's/^/      /' <<< "$dirty"
+            info "Updating would overwrite them, so the update can't go ahead until they're set aside."
+            if ui_confirm "Set these changes aside (git stash) and update?" y; then
+                if ! out=$(git -C "$WB_HOME" stash push --include-untracked -m "set aside by waterbear update $(date '+%F %T')" 2>&1); then
+                    sed 's/^/      /' <<< "$out"
+                    WB_UPDATE_ERR="Waterbear wasn't updated: couldn't set aside the hand-made changes in $WB_HOME (git's message is above)."
+                    return 1
+                fi
+                ok "Changes set aside. To get them back: git -C $WB_HOME stash pop"
+            else
+                WB_UPDATE_ERR="Waterbear wasn't updated: $WB_HOME has hand-made changes (listed above). Run 'waterbear update' again and say yes to setting them aside, or undo them with: git -C $WB_HOME checkout -- ."
+                return 1
+            fi
+        fi
+        if ! out=$(git -C "$WB_HOME" pull --ff-only 2>&1); then
+            sed 's/^/      /' <<< "$out"
+            if grep -qiE "could not resolve|unable to access|timed out|network" <<< "$out"; then
+                WB_UPDATE_ERR="Waterbear wasn't updated: couldn't reach GitHub. Check your internet connection, then run 'waterbear update' again."
+            elif grep -qiE "not possible to fast-forward|diverg" <<< "$out"; then
+                WB_UPDATE_ERR="Waterbear wasn't updated: $WB_HOME has its own commits that aren't on GitHub (git -C $WB_HOME log). Move them to your dev copy, then: git -C $WB_HOME reset --hard origin/main"
+            else
+                WB_UPDATE_ERR="Waterbear wasn't updated: 'git pull' failed in $WB_HOME (git's message is above)."
+            fi
+            return 1
+        fi
     else
         local tmp; tmp=$(mktemp -d)
-        if git clone --depth 1 "$WB_REPO_URL" "$tmp/wb" > /dev/null 2>&1 && [[ -x "$tmp/wb/waterbear" ]]; then
-            rm -rf "$WB_HOME.old"; mv "$WB_HOME" "$WB_HOME.old" && mv "$tmp/wb" "$WB_HOME" && rm -rf "$WB_HOME.old"
-            ok "Waterbear updated from GitHub."
-        else
-            warn "Couldn't get Waterbear from GitHub ($WB_REPO_URL). Kept the current version."
+        if ! out=$(git clone --depth 1 "$WB_REPO_URL" "$tmp/wb" 2>&1) || [[ ! -x "$tmp/wb/waterbear" ]]; then
+            sed 's/^/      /' <<< "$out"
+            rm -rf "$tmp"
+            WB_UPDATE_ERR="Waterbear wasn't updated: couldn't download it from $WB_REPO_URL (message above). Kept the current version."
+            return 1
         fi
-        rm -rf "$tmp"
+        rm -rf "$WB_HOME.old"
+        if ! { mv "$WB_HOME" "$WB_HOME.old" && mv "$tmp/wb" "$WB_HOME"; }; then
+            [[ -d "$WB_HOME" ]] || mv "$WB_HOME.old" "$WB_HOME"
+            rm -rf "$tmp"
+            WB_UPDATE_ERR="Waterbear wasn't updated: couldn't replace the files in $WB_HOME. Kept the current version."
+            return 1
+        fi
+        rm -rf "$WB_HOME.old" "$tmp"
     fi
-    local new; new="$(cat "$WB_HOME/VERSION" 2> /dev/null || echo unknown)"
-    if [[ "$new" == "$WB_VERSION" ]]; then ok "Waterbear is up to date ($new)."
-    else ok "Waterbear updated: $WB_VERSION → $new"; fi
-    ok "System and Waterbear updated. Refreshing configs..."
+    return 0
+}
+
+# Shows what went wrong: red box in the terminal, desktop notification, log file
+update_report_failure() {
+    local p
+    mkdir -p "$(dirname "$WB_UPDATE_LOG")"
+    {
+        echo "waterbear update — $(date '+%F %T') — FAILED"
+        for p in "$@"; do echo "  - $p"; done
+    } > "$WB_UPDATE_LOG"
+    echo
+    if command -v gum > /dev/null; then
+        gum style --border double --border-foreground 9 --foreground 9 --padding "0 2" --margin "0 1" --width 78 \
+            "UPDATE FAILED" "" "${@/#/• }" "" "This message is saved in: $WB_UPDATE_LOG"
+    else
+        printf '%s xx UPDATE FAILED%s\n' "$c_red" "$c_off" >&2
+        for p in "$@"; do printf '%s xx%s %s\n' "$c_red" "$c_off" "$p" >&2; done
+        printf '    This message is saved in: %s\n' "$WB_UPDATE_LOG" >&2
+    fi
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]] && command -v notify-send > /dev/null; then
+        notify-send -u critical -a Waterbear "Waterbear update failed" "$1 (details: $WB_UPDATE_LOG)" 2> /dev/null || true
+    fi
+}
+
+waterbear_update() {
+    need_sudo
+    local problems=()
+    if [[ -f /etc/snapper/configs/root ]]; then
+        snapshot_now "before-update-$(date +%F)" || problems+=("Couldn't take the before-update snapshot (snapper's message is above).")
+    fi
+    step "Updating the system"
+    sudo pacman -Syu --noconfirm || problems+=("The system update (pacman -Syu) failed. Scroll up for pacman's error.")
+    if command -v yay > /dev/null; then
+        step "Updating AUR apps"
+        yay -Sua --noconfirm || problems+=("Some AUR updates (yay -Sua) failed. Scroll up for yay's error.")
+    fi
+
+    step "Updating Waterbear (you have $WB_VERSION)"
+    local new
+    if wb_self_update; then
+        new="$(cat "$WB_HOME/VERSION" 2> /dev/null || echo unknown)"
+        if [[ "$new" == "$WB_VERSION" ]]; then ok "Waterbear is up to date ($new)."
+        else ok "Waterbear updated: $WB_VERSION → $new"; fi
+    else
+        problems+=("$WB_UPDATE_ERR")
+    fi
+
+    step "Refreshing configs"
     # Run the (possibly new) Waterbear to re-apply configs with the latest templates
-    exec "$WB_HOME/waterbear" apply
+    "$WB_HOME/waterbear" apply || problems+=("Refreshing configs ('waterbear apply') failed. Scroll up for the error.")
+
+    if (( ${#problems[@]} )); then
+        update_report_failure "${problems[@]}"
+        return 1
+    fi
+    mkdir -p "$(dirname "$WB_UPDATE_LOG")"
+    echo "waterbear update — $(date "+%F %T") — OK (version $new)" > "$WB_UPDATE_LOG"
+    ok "System and Waterbear updated."
 }

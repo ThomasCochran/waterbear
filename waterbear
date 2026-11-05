@@ -424,7 +424,8 @@ cmd_menu() {
                         "Text login on tty1::text" "hyprlock as the login screen::screen") || continue
                     LOGIN="$l"; need_sudo; login_apply; state_save; ui_pause ;;
             system) cmd_system ;;
-            update) waterbear_update ;;
+            update) waterbear_update || true; ui_pause
+                    exec "$WB_HOME/waterbear" menu ;;   # reopen with the (possibly new) version
             quit)   exit 0 ;;
         esac
     done
