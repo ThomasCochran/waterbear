@@ -6,6 +6,7 @@ WB_CONF="$HOME/.config/waterbear"
 WB_STATE="$WB_CONF/state.conf"
 WB_REPO_URL="https://github.com/ThomasCochran/waterbear.git"
 WB_BIN="$HOME/.local/bin"
+WB_VERSION="$(cat "$WB_HOME/VERSION" 2> /dev/null || echo unknown)"
 
 # ---------------------------------------------------------------------------
 # Output
@@ -116,7 +117,7 @@ ui_title() {  # big header box
     $INTERACTIVE || return 0
     clear
     gum style --border rounded --border-foreground "#$P_A" --foreground "#$P_B" \
-        --padding "0 2" --margin "0 1" "Waterbear  ·  $1"
+        --padding "0 2" --margin "0 1" "Waterbear  ·  $1" "version $WB_VERSION"
 }
 
 # ui_pick HEADER DEFAULT "label::value"...  -> prints chosen value
@@ -129,7 +130,7 @@ ui_pick() {
     for o in "$@"; do values+=("${o##*::}"); done
     local i; for i in "${!values[@]}"; do [[ "${values[$i]}" == "$def" ]] && sel="${labels[$i]}"; done
     local got
-    got=$(gum choose --header "$header" ${sel:+--selected "$sel"} "${labels[@]}") || return 1
+    got=$(gum choose --header "$header${UI_HINT:-}" ${sel:+--selected "$sel"} "${labels[@]}") || return 1
     for i in "${!labels[@]}"; do [[ "${labels[$i]}" == "$got" ]] && { echo "${values[$i]}"; return 0; }; done
     return 1
 }
@@ -147,7 +148,7 @@ ui_checks() {
     done
     local selected; selected=$(IFS=,; echo "${sel[*]}")
     local got
-    got=$(gum choose --no-limit --header "$header  (x or tab = tick, enter = done)" \
+    got=$(gum choose --no-limit --header "$header  (x or tab = tick, enter = done${UI_HINT:+, esc = back})" \
           ${selected:+--selected "$selected"} "${labels[@]}") || return 1
     local out=() line i
     while IFS= read -r line; do
@@ -163,7 +164,36 @@ ui_confirm() {  # ui_confirm QUESTION DEFAULT(y/n)
 
 ui_input() {  # ui_input HEADER DEFAULT
     if ! $INTERACTIVE; then echo "$2"; return 0; fi
-    gum input --header "$1" --value "$2"
+    gum input --header "$1${UI_HINT:-}" --value "$2"
+}
+
+ui_yesno() {  # ui_yesno QUESTION DEFAULT(yes/no) -> prints yes/no; fails on esc (unlike gum confirm)
+    ui_pick "$1" "$2" "Yes::yes" "No::no"
+}
+
+# ui_steps STEP... — run question steps in order, with esc going back one step.
+# Each step is a function that sets its variables and returns:
+#   0 = answered (go forward)   1 = esc pressed (go back)   2 = doesn't apply (skip, keep direction)
+# Esc on the first step leaves and undoes every answer from these steps (returns 1).
+ui_steps() {
+    local steps=("$@") i=0 dir=1 rc saved
+    saved=$(declare -p "${STATE_KEYS[@]}" OLD_CONFIGS 2> /dev/null) || true
+    local UI_HINT="  ·  esc = back"
+    while (( i >= 0 && i < ${#steps[@]} )); do
+        rc=0; "${steps[$i]}" || rc=$?
+        case $rc in
+            0) dir=1 ;;
+            2) ;;
+            *) dir=-1 ;;
+        esac
+        i=$(( i + dir ))
+    done
+    if (( i < 0 )); then
+        eval "${saved//declare -/declare -g -}"
+        scheme_load "$SCHEME"; ui_colors
+        return 1
+    fi
+    return 0
 }
 
 ui_pause() { $INTERACTIVE && { echo; read -rsn1 -p "  press any key to continue"; echo; }; return 0; }

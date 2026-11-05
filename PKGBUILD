@@ -5,7 +5,7 @@
 # Then run `waterbear setup` as your normal user to set up the desktop.
 
 pkgname=waterbear
-pkgver=1.0.0
+pkgver=1.0.1   # keep the same as the VERSION file
 pkgrel=1
 pkgdesc="An Arch + Hyprland setup: themed, keyboard-driven desktop with switchable color schemes and snapshots"
 arch=('any')

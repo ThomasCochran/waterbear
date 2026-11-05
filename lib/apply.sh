@@ -197,7 +197,7 @@ apply_all() {
     render hypr/hyprlock.conf "$H/hyprlock.conf"
     wallpaper_generate
     write_wallpaper_configs
-    render hypr/KEYBINDS.md "$H/KEYBINDS.md"
+    render "hypr/KEYBINDS-$KEYBINDS.md" "$H/KEYBINDS.md"   # cheat sheet for the chosen keybind set
     write_hypridle
     [[ -f "$H/user.lua" ]] || cat > "$H/user.lua" << 'EOF'
 -- ~/.config/hypr/user.lua — YOUR file. Waterbear creates it once and never changes it.

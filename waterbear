@@ -9,6 +9,7 @@
 #   waterbear update          snapshot, update the system and Waterbear, refresh configs
 #   waterbear snapshot [DESC] take a snapshot now
 #   waterbear apply           rewrite all configs from your saved settings
+#   waterbear version         show which version is installed
 #   waterbear help
 #
 # Setup options (for `waterbear setup` / the installer):
@@ -39,31 +40,53 @@ pick_scheme() {
     ui_pick "Color scheme" "$SCHEME" "${opts[@]}"
 }
 
-pick_accent() {  # for schemes like Noir that let you choose the accent color
-    local opts=() pair cur="${ACCENT:-$(scheme_accent_default "$SCHEME")}"
+# Question steps for ui_steps: 0 = answered, 1 = back (esc), 2 = doesn't apply
+st_scheme() {
+    local v; v=$(pick_scheme) || return 1
+    [[ "$v" != "$SCHEME" ]] && ACCENT=""
+    SCHEME="$v"; scheme_load "$SCHEME"; ui_colors
+}
+
+st_accent() {  # for schemes like Noir that let you choose the accent color
+    local opts=() pair cur="${ACCENT:-$(scheme_accent_default "$SCHEME")}" v
     while IFS= read -r pair; do
         opts+=("$(printf '%-7s' "${pair%%:*}") #${pair#*:}::${pair%%:*}")
     done < <(scheme_accents "$SCHEME")
-    [[ ${#opts[@]} -eq 0 ]] && { ACCENT=""; return 0; }
-    ACCENT=$(ui_pick "Accent color for $SCHEME" "$cur" "${opts[@]}") || ACCENT="$cur"
+    [[ ${#opts[@]} -eq 0 ]] && { ACCENT=""; return 2; }
+    v=$(ui_pick "Accent color for $SCHEME" "$cur" "${opts[@]}") || return 1
+    ACCENT="$v"; scheme_load "$SCHEME"; ui_colors
 }
 
-pick_wallpaper() {
-    WALLPAPER=$(ui_pick "Background" "$WALLPAPER" \
+st_wallpaper() {
+    local v
+    v=$(ui_pick "Background" "$WALLPAPER" \
         "solid        your theme's background color::solid" \
         "grid         synthwave grid horizon::grid" \
         "orbit        a ringed planet::orbit" \
         "logo         the waterbear logo, in your theme's colors::logo" \
         "matrix rain  live: cmatrix falling behind your windows::cmatrix" \
         "sound bars   live: cava bars that move with your music::cava") || return 1
-    if [[ "$WALLPAPER" == cmatrix || "$WALLPAPER" == cava ]]; then
-        if ui_confirm "Keep the live background running on battery? (No = solid color on battery, saves power)" n; then
-            LIVE_ON_BATTERY=yes; else LIVE_ON_BATTERY=no; fi
-    fi
-    LOCK_BG=$(ui_pick "Lock screen background" "$LOCK_BG" \
-        "solid      your theme's background color::solid" \
-        "wallpaper  a blurred, dimmed copy of your background (image backgrounds only)::wallpaper") || true
+    WALLPAPER="$v"
 }
+
+st_live_battery() {
+    [[ "$WALLPAPER" == cmatrix || "$WALLPAPER" == cava ]] || return 2
+    local v; v=$(ui_yesno "Keep the live background running on battery? (No = solid color on battery, saves power)" "$LIVE_ON_BATTERY") || return 1
+    LIVE_ON_BATTERY="$v"
+}
+
+st_lock_bg() {
+    local v
+    v=$(ui_pick "Lock screen background" "$LOCK_BG" \
+        "solid      your theme's background color::solid" \
+        "wallpaper  a blurred, dimmed copy of your background (image backgrounds only)::wallpaper") || return 1
+    LOCK_BG="$v"
+}
+
+st_bar()    { local v; v=$(pick_bar) || return 1; BAR="$v"; }
+st_prompt() { local v; v=$(pick_prompt) || return 1; PROMPT="$v"; }
+
+pick_wallpaper() { ui_steps st_wallpaper st_live_battery st_lock_bg; }
 
 wallpaper_pkgs() {  # packages the chosen background needs
     case "$WALLPAPER" in
@@ -89,49 +112,81 @@ pick_prompt() {
         "off      plain bash prompt (no Starship)::off"
 }
 
+show_shortcuts() {  # the cheat sheet for the keybind set in use (written by apply_all)
+    local f="$HOME/.config/hypr/KEYBINDS.md"
+    [[ -f "$f" ]] || render "hypr/KEYBINDS-$KEYBINDS.md" "$f"
+    less "$f"
+}
+
 pick_keybinds() {
-    ui_pick "Keyboard shortcuts" "$KEYBINDS" \
+    ui_pick "Keyboard shortcuts  (full list later: Super+Alt+Space → Shortcuts)" "$KEYBINDS" \
         "Waterbear shortcuts, JaKooLit-style (Super+Enter terminal · Super+D apps · Super+Q close)::waterbear" \
         "Hyprland stock shortcuts (Super+Q terminal · Super+R apps · Super+C close)::default"
 }
 
-pick_idle() {
+st_idle_preset() {
     local p
     p=$(ui_pick "Screensaver & lock timing (minutes: screensaver / lock / screen off / sleep)" "$IDLE_PRESET" \
         "short    2 / 3 / 5 / 15::short" \
         "normal   4 / 5 / 7 / 20::normal" \
         "long     9 / 10 / 15 / 30::long" \
         "custom   type your own::custom") || return 1
-    if [[ "$p" == custom ]]; then
-        IDLE_SAVER=$(ui_input "Screensaver after (minutes, must be less than lock)" "$IDLE_SAVER")
-        IDLE_LOCK=$(ui_input "Lock after (minutes)" "$IDLE_LOCK")
-        IDLE_OFF=$(ui_input "Screen off after (minutes)" "$IDLE_OFF")
-        IDLE_SUSPEND=$(ui_input "Sleep after (minutes, 0 = never)" "$IDLE_SUSPEND")
-        local v; for v in "$IDLE_SAVER" "$IDLE_LOCK" "$IDLE_OFF" "$IDLE_SUSPEND"; do
-            [[ "$v" =~ ^[0-9]+$ ]] || { warn "'$v' isn't a number. Keeping the normal timing."; idle_preset normal; return 0; }
-        done
-        IDLE_PRESET=custom
-    else
-        idle_preset "$p"
-    fi
-    SAVER=$(ui_pick "Screensaver" "$SAVER" \
+    if [[ "$p" == custom ]]; then IDLE_PRESET=custom; else idle_preset "$p"; fi
+}
+
+st_idle_custom() {
+    [[ "$IDLE_PRESET" == custom ]] || return 2
+    local s l o z v
+    s=$(ui_input "Screensaver after (minutes, must be less than lock)" "$IDLE_SAVER") || return 1
+    l=$(ui_input "Lock after (minutes)" "$IDLE_LOCK") || return 1
+    o=$(ui_input "Screen off after (minutes)" "$IDLE_OFF") || return 1
+    z=$(ui_input "Sleep after (minutes, 0 = never)" "$IDLE_SUSPEND") || return 1
+    for v in "$s" "$l" "$o" "$z"; do
+        [[ "$v" =~ ^[0-9]+$ ]] || { warn "'$v' isn't a number. Pick again."; ui_pause; return 1; }
+    done
+    IDLE_SAVER="$s"; IDLE_LOCK="$l"; IDLE_OFF="$o"; IDLE_SUSPEND="$z"
+}
+
+st_saver() {
+    local v
+    v=$(ui_pick "Screensaver" "$SAVER" \
         "cmatrix  Matrix rain::cmatrix" \
         "clock    big terminal clock::clock" \
         "off      no screensaver, just lock::off") || return 1
-    if [[ "$SAVER" != off ]]; then
-        if ui_confirm "Run the screensaver on battery too? (No = go straight to lock to save power)" n; then
-            SAVER_ON_BATTERY=yes; else SAVER_ON_BATTERY=no; fi
-    fi
+    SAVER="$v"
 }
 
-pick_firewall() {
-    if ui_confirm "Use the firewall? (blocks incoming connections except what you allow)" y; then
-        FIREWALL=yes
-        FW_PORTS=$(ui_checks "Allow incoming" "$FW_PORTS" "${FW_OPTIONS[@]}")
-    else
-        FIREWALL=no
-    fi
+st_saver_battery() {
+    [[ "$SAVER" != off ]] || return 2
+    local v; v=$(ui_yesno "Run the screensaver on battery too? (No = go straight to lock to save power)" "$SAVER_ON_BATTERY") || return 1
+    SAVER_ON_BATTERY="$v"
 }
+
+st_fw_on() {
+    local v; v=$(ui_yesno "Use the firewall? (blocks incoming connections except what you allow)" "$FIREWALL") || return 1
+    FIREWALL="$v"
+}
+
+st_fw_ports() {
+    [[ "$FIREWALL" == yes ]] || return 2
+    local v; v=$(ui_checks "Allow incoming" "$FW_PORTS" "${FW_OPTIONS[@]}") || return 1
+    FW_PORTS="$v"
+}
+
+st_sys_checks() {  # setup wizard: snapper · weekly · yay
+    local sys
+    sys=$(ui_checks "System" "$( [[ $SNAPPER == yes ]] && echo snapper; [[ $SNAPPER_WEEKLY == yes ]] && echo weekly; [[ $YAY == yes ]] && echo yay )" \
+        "Snapper snapshots (roll back from the boot menu)::snapper" \
+        "Weekly automatic snapshot (needs Snapper)::weekly" \
+        "yay: AUR helper (unlocks LocalSend and other AUR apps)::yay") || return 1
+    [[ " $sys " == *" snapper "* ]] && SNAPPER=yes || SNAPPER=no
+    [[ " $sys " == *" weekly "* && $SNAPPER == yes ]] && SNAPPER_WEEKLY=yes || SNAPPER_WEEKLY=no
+    [[ " $sys " == *" yay "* ]] && YAY=yes || { YAY=no; del_app localsend; }
+    return 0
+}
+
+pick_idle()     { ui_steps st_idle_preset st_idle_custom st_saver st_saver_battery; }
+pick_firewall() { ui_steps st_fw_on st_fw_ports; }
 
 pick_apps() {  # prints the new selection
     local opts=(); mapfile -t opts < <(app_options)
@@ -167,6 +222,7 @@ setup_wizard() {
         scheme_load "$SCHEME"; ui_colors
         ui_title "Setup"
         setup_summary; echo
+        info "You can change all of this later in the Waterbear menu: Super + Alt + Space"; echo
         local tab
         tab=$(ui_pick "Pick a section to change, then Install" install \
             "Looks        color scheme · status bar · prompt::looks" \
@@ -176,29 +232,19 @@ setup_wizard() {
             "Login        text login or hyprlock login screen::login" \
             "Old configs  back up or delete existing configs::old" \
             "Install      ▶ start::install" \
-            "Quit::quit") || exit 0
+            "Quit::quit") || { ui_confirm "Quit setup?" n && exit 0; continue; }
+        local v
         case "$tab" in
-            looks)  SCHEME=$(pick_scheme) || true; ACCENT=""; pick_accent; scheme_load "$SCHEME"; ui_colors
-                    pick_wallpaper || true
-                    BAR=$(pick_bar) || true; PROMPT=$(pick_prompt) || true ;;
-            keys)   KEYBINDS=$(pick_keybinds) || true ;;
-            apps)   APPS=$(pick_apps) || true ;;
-            system) local sys
-                    sys=$(ui_checks "System" "$( [[ $SNAPPER == yes ]] && echo snapper; [[ $SNAPPER_WEEKLY == yes ]] && echo weekly; [[ $YAY == yes ]] && echo yay )" \
-                        "Snapper snapshots (roll back from the boot menu)::snapper" \
-                        "Weekly automatic snapshot (needs Snapper)::weekly" \
-                        "yay: AUR helper (unlocks LocalSend and other AUR apps)::yay") || true
-                    [[ " $sys " == *" snapper "* ]] && SNAPPER=yes || SNAPPER=no
-                    [[ " $sys " == *" weekly "* && $SNAPPER == yes ]] && SNAPPER_WEEKLY=yes || SNAPPER_WEEKLY=no
-                    [[ " $sys " == *" yay "* ]] && YAY=yes || { YAY=no; del_app localsend; }
-                    pick_firewall || true
-                    pick_idle || true ;;
-            login)  LOGIN=$(ui_pick "Login" "$LOGIN" \
+            looks)  ui_steps st_scheme st_accent st_wallpaper st_live_battery st_lock_bg st_bar st_prompt || true ;;
+            keys)   v=$(pick_keybinds) && KEYBINDS="$v" || true ;;
+            apps)   v=$(pick_apps) && APPS="$v" || true ;;
+            system) ui_steps st_sys_checks st_fw_on st_fw_ports st_idle_preset st_idle_custom st_saver st_saver_battery || true ;;
+            login)  v=$(ui_pick "Login" "$LOGIN" \
                         "Text login on tty1 (type username + password, Hyprland starts)::text" \
-                        "hyprlock as the login screen (single user: boots locked, same look as your lock screen)::screen") || true ;;
-            old)    OLD_CONFIGS=$(ui_pick "Existing hypr/kitty/rofi/waybar configs" "$OLD_CONFIGS" \
+                        "hyprlock as the login screen (single user: boots locked, same look as your lock screen)::screen") && LOGIN="$v" || true ;;
+            old)    v=$(ui_pick "Existing hypr/kitty/rofi/waybar configs" "$OLD_CONFIGS" \
                         "Back them up to ~/.config/waterbear-backups (keeps the newest 3)::backup" \
-                        "Delete them::delete") || true ;;
+                        "Delete them::delete") && OLD_CONFIGS="$v" || true ;;
             install) ui_confirm "Install Waterbear with these settings?" y && return 0 ;;
             quit)   exit 0 ;;
         esac
@@ -248,9 +294,14 @@ setup_run() {
     state_save
     if [[ "$SNAPPER" == yes ]]; then snapshot_now "waterbear-setup-$(date +%F)" || true; fi
 
-    step "Done"
-    info "Menu: Super+Alt+Space (or type: waterbear)"
-    info "Keybinds cheat sheet: Super+H"
+    step "Done: Waterbear $WB_VERSION is installed"
+    info "Waterbear menu: Super + Alt + Space (or type: waterbear)"
+    info "  themes · background · bar · apps · every keyboard shortcut · snapshots · update"
+    if [[ "$KEYBINDS" == waterbear ]]; then
+        info "Keybind cheat sheet: Super + H  (search it: Super + Shift + K)"
+    else
+        info "Keybind cheat sheet: Super + Alt + Space → Shortcuts"
+    fi
     if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
         info "You're in Hyprland already; most changes are live. Log out and back in for the rest."
     elif [[ "$LOGIN" == screen ]]; then
@@ -309,14 +360,15 @@ cmd_menu() {
             "Background   $WALLPAPER · lock screen: $LOCK_BG::wall" \
             "Status bar   $BAR::bar" \
             "Prompt       $PROMPT::prompt" \
-            "Keybinds     $KEYBINDS · view cheat sheet::keys" \
+            "Shortcuts    every keyboard shortcut and what it does::shortcuts" \
+            "Keybinds     $KEYBINDS set · switch to the other set::keys" \
             "Apps         install or remove::apps" \
             "Screensaver  $SAVER · lock after ${IDLE_LOCK} min::idle" \
             "Snapshots    list · take one · restore::snaps" \
             "Firewall     $([[ $FIREWALL == yes ]] && echo "on · open: ${FW_PORTS:-nothing}" || echo off)::fw" \
             "Login        $([[ $LOGIN == screen ]] && echo hyprlock || echo "text on tty1")::login" \
             "System       snapper · weekly snapshot · yay::system" \
-            "Update       system + Waterbear::update" \
+            "Update       system + Waterbear (you have $WB_VERSION)::update" \
             "Quit::quit") || exit 0
         case "$c" in
             theme)  cmd_theme ;;
@@ -324,17 +376,15 @@ cmd_menu() {
                     local need; need=$(wallpaper_pkgs)
                     if [[ -n "$need" ]]; then local p; for p in $need; do pkg_installed "$p" || { need_sudo; pac $need; break; }; done; fi
                     state_save; apply_all ;;
-            bar)    BAR=$(pick_bar) || continue
+            bar)    local b; b=$(pick_bar) || continue; BAR="$b"
                     [[ "$BAR" != none ]] && ! pkg_installed waybar && { need_sudo; pac waybar; }
                     state_save; apply_all ;;
-            prompt) PROMPT=$(pick_prompt) || continue
+            prompt) local pr; pr=$(pick_prompt) || continue; PROMPT="$pr"
                     [[ "$PROMPT" != off ]] && ! pkg_installed starship && { need_sudo; pac starship; }
                     state_save; apply_all; info "Open a new terminal to see it." ; ui_pause ;;
-            keys)   local k; k=$(ui_pick "Keybinds" view "View the cheat sheet::view" "Switch shortcut set::switch" "Back::back") || continue
-                    case "$k" in
-                        view)   less "$HOME/.config/hypr/KEYBINDS.md" ;;
-                        switch) KEYBINDS=$(pick_keybinds) || continue; state_save; apply_all ;;
-                    esac ;;
+            shortcuts) show_shortcuts ;;
+            keys)   local kb; kb=$(pick_keybinds) || continue; KEYBINDS="$kb"; state_save; apply_all
+                    ok "Shortcuts switched. See them all: Shortcuts, in this menu."; ui_pause ;;
             apps)   local sel; sel=$(pick_apps) || continue; need_sudo; apps_sync "$sel"; state_save; apply_all; ui_pause ;;
             idle)   pick_idle || continue; state_save; apply_all; ok "Saved."; ui_pause ;;
             snaps)  snapshots_menu ;;
@@ -371,8 +421,7 @@ cmd_theme() {
         SCHEME="$1"; ACCENT="${2:-}"
         [[ -z "$ACCENT" && "$SCHEME" == "$old" ]] && ACCENT=$(. "$WB_STATE" 2>/dev/null; echo "${ACCENT:-}")
     else
-        SCHEME=$(pick_scheme) || return 0
-        ACCENT=""; pick_accent
+        ui_steps st_scheme st_accent || return 0
     fi
     if [[ -n "$ACCENT" && -z "$(scheme_accents "$SCHEME")" ]]; then ACCENT=""; fi
     scheme_load "$SCHEME"
@@ -390,6 +439,7 @@ case "${1:-menu}" in
     update)   state_load; waterbear_update ;;
     snapshot) state_load; snapshot_now "${2:-manual-$(date +%F)}" ;;
     apply)    state_load; apply_all; ok "Configs refreshed." ;;
-    help|-h|--help) sed -n '2,21p' "$WB_SELF" | sed 's/^# \{0,1\}//' ;;
+    version|-v|--version) echo "Waterbear $WB_VERSION" ;;
+    help|-h|--help) sed -n '2,22p' "$WB_SELF" | sed 's/^# \{0,1\}//' ;;
     *)        die "Unknown command: $1 (try: waterbear help)" ;;
 esac

@@ -11,7 +11,7 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 0.3.0 |
+| **Version** | 1.0.1 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |
@@ -49,17 +49,23 @@ chmod +x Installer.sh && ./Installer.sh
 ```
 
 The setup wizard has tabs: **Looks**, **Keybinds**, **Apps**, **System**, **Login**, **Old configs**,
-then **Install**. Arrow keys move, **x** or **Tab** ticks a checkbox, **Enter** confirms.
+then **Install**. Arrow keys move, **x** or **Tab** ticks a checkbox, **Enter** confirms, **Esc** goes back one question.
 `./install.sh --yes` skips the questions and uses the defaults.
+Nothing you pick is final: everything can be changed later in the Waterbear menu (**Super + Alt + Space**).
 
 ## After installing
 
+> **Press `Super + Alt + Space` to open the Waterbear menu.** It's where you change your theme,
+> background, bar, prompt, apps, screensaver, firewall, login and keybind set, take or restore snapshots,
+> update, and see **Shortcuts**: a list of every keyboard shortcut for the keybind set you picked.
+> It works with either keybind set.
+
 | | |
 |---|---|
-| `Super + Alt + Space` | Waterbear menu: theme, bar, prompt, apps, screensaver, snapshots, firewall, login, update |
-| `Super + T` | Theme picker |
-| `Super + H` | Keybind cheat sheet |
-| `Super + W` | Show / hide the status bar |
+| `Super + Alt + Space` | Waterbear menu (both keybind sets) |
+| `Super + T` | Theme picker (Waterbear keybinds) |
+| `Super + H` | Keybind cheat sheet (Waterbear keybinds; with stock keybinds use the menu → Shortcuts) |
+| `Super + W` | Show / hide the status bar (Waterbear keybinds) |
 
 The same things from a terminal (works in a TTY too):
 
@@ -70,6 +76,7 @@ waterbear bar islands     # dashboard | islands | terminal | none
 waterbear apps            # install / remove optional apps
 waterbear update          # snapshot → system update → newest Waterbear → refresh configs
 waterbear snapshot        # take a snapshot now
+waterbear version         # which version you have
 waterbear help
 ```
 

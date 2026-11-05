@@ -179,7 +179,7 @@ waterbear_update() {
     sudo pacman -Syu --noconfirm
     if command -v yay > /dev/null; then step "Updating AUR apps"; yay -Sua --noconfirm || warn "Some AUR updates failed."; fi
 
-    step "Updating Waterbear"
+    step "Updating Waterbear (you have $WB_VERSION)"
     if [[ -d "$WB_HOME/.git" ]]; then
         git -C "$WB_HOME" pull --ff-only || warn "Couldn't update Waterbear (local changes? network?)."
     else
@@ -192,6 +192,9 @@ waterbear_update() {
         fi
         rm -rf "$tmp"
     fi
+    local new; new="$(cat "$WB_HOME/VERSION" 2> /dev/null || echo unknown)"
+    if [[ "$new" == "$WB_VERSION" ]]; then ok "Waterbear is up to date ($new)."
+    else ok "Waterbear updated: $WB_VERSION → $new"; fi
     ok "System and Waterbear updated. Refreshing configs..."
     # Run the (possibly new) Waterbear to re-apply configs with the latest templates
     exec "$WB_HOME/waterbear" apply
