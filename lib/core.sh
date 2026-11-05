@@ -5,6 +5,7 @@ WB_HOME="${WATERBEAR_HOME:-$HOME/.local/share/waterbear}"
 WB_CONF="$HOME/.config/waterbear"
 WB_STATE="$WB_CONF/state.conf"
 WB_REPO_URL="https://github.com/ThomasCochran/waterbear.git"
+WB_RAW_URL="https://raw.githubusercontent.com/ThomasCochran/waterbear/main"   # for the login version check
 WB_BIN="$HOME/.local/bin"
 WB_VERSION="$(cat "$WB_HOME/VERSION" 2> /dev/null || echo unknown)"
 
@@ -22,15 +23,16 @@ die()  { printf '%s xx%s %s\n' "$c_red" "$c_off" "$1" >&2; exit 1; }
 # ---------------------------------------------------------------------------
 # Saved settings (~/.config/waterbear/state.conf)
 # ---------------------------------------------------------------------------
-STATE_KEYS=(SCHEME ACCENT WALLPAPER LIVE_ON_BATTERY LOCK_BG BAR KEYBINDS PROMPT SAVER SAVER_ON_BATTERY IDLE_PRESET IDLE_SAVER IDLE_LOCK IDLE_OFF
-            IDLE_SUSPEND LOGIN SNAPPER SNAPPER_WEEKLY FIREWALL FW_PORTS YAY APPS MONITORS MON_WS)
+STATE_KEYS=(SCHEME ACCENT WALLPAPER LIVE_ON_BATTERY LOCK_BG BAR KEYBINDS PROMPT USER_SHELL SAVER SAVER_ON_BATTERY IDLE_PRESET IDLE_SAVER IDLE_LOCK IDLE_OFF
+            IDLE_SUSPEND LOGIN SNAPPER SNAPPER_WEEKLY FIREWALL FW_PORTS YAY APPS MONITORS MON_WS AUTO_UPDATE)
 
 state_defaults() {
-    SCHEME=abyss; ACCENT=""; WALLPAPER=solid; LIVE_ON_BATTERY=no; LOCK_BG=solid; BAR=dashboard; KEYBINDS=waterbear; PROMPT=hacker
+    SCHEME=abyss; ACCENT=""; WALLPAPER=solid; LIVE_ON_BATTERY=no; LOCK_BG=solid; BAR=dashboard; KEYBINDS=waterbear; PROMPT=hacker; USER_SHELL=bash
     SAVER=cmatrix; SAVER_ON_BATTERY=no
     IDLE_PRESET=normal; IDLE_SAVER=4; IDLE_LOCK=5; IDLE_OFF=7; IDLE_SUSPEND=20
     LOGIN=text; SNAPPER=yes; SNAPPER_WEEKLY=yes
     FIREWALL=yes; FW_PORTS="ssh"; YAY=no; APPS="btop clock"
+    AUTO_UPDATE=ask   # off | ask (notify at login when GitHub has a newer version) | auto (install it at login)
     MONITORS=""; MON_WS=""   # empty = Hyprland places monitors and workspaces itself
 }
 

@@ -5,9 +5,11 @@
 #   waterbear setup           first-time setup wizard (run by the installer)
 #   waterbear theme [NAME] [ACCENT]  switch color scheme (no name = pick from a list)
 #   waterbear bar [NAME]      dashboard | islands | terminal | none
+#   waterbear shell [NAME]    bash | fish: the shell your terminals open
 #   waterbear apps            install / remove optional apps
 #   waterbear monitors        monitor order (left → right) and which workspaces go on which
 #   waterbear update          snapshot, update the system and Waterbear, refresh configs
+#   waterbear autoupdate [off|ask|auto]  no argument = check now (runs at every login)
 #   waterbear snapshot [DESC] take a snapshot now
 #   waterbear apply           rewrite all configs from your saved settings
 #   waterbear shortcuts       list every keyboard shortcut (also: Super+H)
@@ -18,7 +20,8 @@
 #   --yes                 no questions, use defaults (Abyss, Dashboard bar, Snapper on, text login)
 #   --scheme NAME   --accent COLOR (Noir: white red orange yellow blue green purple pink)
 #   --wallpaper solid|grid|orbit|logo|cmatrix|cava   --bar NAME   --prompt minimal|info|hacker|off
-#   --apps "btop nvim ..."      --steam      --yay
+#   --shell bash|fish     the shell your terminals open
+#   --apps "btop nvim ..."      --steam      --yay      --auto-update off|ask|auto
 #   --login-screen  --text-login   --no-snapper   --no-firewall   --delete-old
 set -euo pipefail
 
@@ -112,7 +115,13 @@ pick_prompt() {
         "hacker   ┌─[tardigrade@laptop]─[~/dotfiles]─[main]   └─❯::hacker" \
         "info     ~/dotfiles on main via 3.14 took 3s   then ❯ on the next line::info" \
         "minimal  ~/dotfiles main ❯::minimal" \
-        "off      plain bash prompt (no Starship)::off"
+        "off      the shell's own plain prompt (no Starship)::off"
+}
+
+pick_shell() {
+    ui_pick "Terminal shell  (your login shell stays bash; this is what kitty opens)" "$USER_SHELL" \
+        "bash  the classic. Same as every guide and script on the internet::bash" \
+        "fish  friendly: suggestions as you type, colors, tab completion with descriptions::fish"
 }
 
 show_shortcuts() {  # the cheat sheet for the keybind set in use. Never exits the menu on a problem.
@@ -195,6 +204,13 @@ st_sys_checks() {  # setup wizard: snapper · weekly · yay
     return 0
 }
 
+pick_autoupdate() {
+    ui_pick "Auto-update  (checks GitHub for a newer Waterbear each time you log in)" "$AUTO_UPDATE" \
+        "ask   a notification with an Update now button (full update: snapshot · system · Waterbear)::ask" \
+        "auto  install the new Waterbear by itself, then tell you (system packages stay manual: they need your password)::auto" \
+        "off   never check; update from this menu yourself::off"
+}
+
 pick_idle()     { ui_steps st_idle_preset st_idle_custom st_saver st_saver_battery; }
 pick_firewall() { ui_steps st_fw_on st_fw_ports; }
 
@@ -218,11 +234,12 @@ BASE_PKGS=(
 setup_summary() {
     local fw="off"; [[ "$FIREWALL" == yes ]] && fw="on (open: ${FW_PORTS:-nothing})"
     printf '%s\n' \
-        "  Looks       $SCHEME${ACCENT:+ ($ACCENT)} · $WALLPAPER background · $BAR bar · $PROMPT prompt" \
+        "  Looks       $SCHEME${ACCENT:+ ($ACCENT)} · $WALLPAPER background · $BAR bar · $PROMPT prompt · $USER_SHELL shell" \
         "  Keybinds    $KEYBINDS" \
         "  Apps        ${APPS:-none}" \
         "  System      snapper: $SNAPPER (weekly: $SNAPPER_WEEKLY) · firewall: $fw · yay: $YAY" \
         "  Screensaver $SAVER · $IDLE_SAVER/$IDLE_LOCK/$IDLE_OFF/$IDLE_SUSPEND min" \
+        "  Updates     auto-update: $AUTO_UPDATE" \
         "  Login       $([[ $LOGIN == screen ]] && echo "hyprlock login screen" || echo "text login on tty1")" \
         "  Old configs $OLD_CONFIGS"
 }
@@ -232,10 +249,12 @@ lbl_theme()  { echo "Theme        $SCHEME${ACCENT:+ ($ACCENT)}"; }
 lbl_wall()   { echo "Background   $WALLPAPER · lock screen: $LOCK_BG"; }
 lbl_bar()    { echo "Status bar   $BAR"; }
 lbl_prompt() { echo "Prompt       $PROMPT"; }
+lbl_shell()  { echo "Shell        $USER_SHELL"; }
 lbl_keys()   { echo "Keybinds     $KEYBINDS set · switch to the other set"; }
 lbl_idle()   { echo "Screensaver  $SAVER · lock after ${IDLE_LOCK} min"; }
 lbl_fw()     { echo "Firewall     $([[ $FIREWALL == yes ]] && echo "on · open: ${FW_PORTS:-nothing}" || echo off)"; }
 lbl_login()  { echo "Login        $([[ $LOGIN == screen ]] && echo hyprlock || echo "text on tty1")"; }
+lbl_auto()   { echo "Auto-update  $AUTO_UPDATE"; }
 lbl_system() { echo "System       snapper: $SNAPPER · weekly snapshot: $SNAPPER_WEEKLY · yay: $YAY"; }
 
 setup_wizard() {
@@ -251,12 +270,14 @@ setup_wizard() {
             "$(lbl_wall)::wall" \
             "$(lbl_bar)::bar" \
             "$(lbl_prompt)::prompt" \
+            "$(lbl_shell)::shell" \
             "$(lbl_keys)::keys" \
             "Apps         ${APPS:-none}::apps" \
             "$(lbl_idle)::idle" \
             "$(lbl_fw)::fw" \
             "$(lbl_login)::login" \
             "$(lbl_system)::system" \
+            "$(lbl_auto)::auto" \
             "Old configs  $OLD_CONFIGS existing hypr/kitty/rofi/waybar configs::old" \
             "Install      ▶ start::install" \
             "Quit::quit") || { ui_confirm "Quit setup?" n && exit 0; continue; }
@@ -267,6 +288,7 @@ setup_wizard() {
             wall)   pick_wallpaper || true ;;
             bar)    v=$(pick_bar) && BAR="$v" || true ;;
             prompt) v=$(pick_prompt) && PROMPT="$v" || true ;;
+            shell)  v=$(pick_shell) && USER_SHELL="$v" || true ;;
             keys)   v=$(pick_keybinds) && KEYBINDS="$v" || true ;;
             apps)   v=$(pick_apps) && APPS="$v" || true ;;
             idle)   pick_idle || true ;;
@@ -275,6 +297,7 @@ setup_wizard() {
                         "Text login on tty1 (type username + password, Hyprland starts)::text" \
                         "hyprlock as the login screen (single user: boots locked, same look as your lock screen)::screen") && LOGIN="$v" || true ;;
             system) ui_steps st_sys_checks || true ;;
+            auto)   v=$(pick_autoupdate) && AUTO_UPDATE="$v" || true ;;
             old)    v=$(ui_pick "Existing hypr/kitty/rofi/waybar configs" "$OLD_CONFIGS" \
                         "Back them up to ~/.config/waterbear-backups (keeps the newest 3)::backup" \
                         "Delete them::delete") && OLD_CONFIGS="$v" || true ;;
@@ -293,6 +316,7 @@ setup_run() {
     local pkgs=("${BASE_PKGS[@]}")
     [[ "$BAR" != none ]] && pkgs+=(waybar)
     [[ "$PROMPT" != off ]] && pkgs+=(starship)
+    [[ "$USER_SHELL" == fish ]] && pkgs+=(fish)
     # shellcheck disable=SC2207
     pkgs+=($(wallpaper_pkgs))
     pac "${pkgs[@]}"
@@ -356,6 +380,7 @@ cmd_setup() {
             --wallpaper)    WALLPAPER="$2"; shift ;;
             --bar)          BAR="$2"; shift ;;
             --prompt)       PROMPT="$2"; shift ;;
+            --shell)        USER_SHELL="$2"; shift ;;
             --apps)         APPS="$2"; shift ;;
             --steam)        steam=true ;;
             --yay)          YAY=yes ;;
@@ -364,6 +389,7 @@ cmd_setup() {
             --no-snapper)   SNAPPER=no; SNAPPER_WEEKLY=no ;;
             --no-firewall)  FIREWALL=no ;;
             --delete-old)   OLD_CONFIGS=delete ;;
+            --auto-update)  AUTO_UPDATE="$2"; shift ;;
             *) die "Unknown option: $1 (see: waterbear help)" ;;
         esac
         shift
@@ -374,6 +400,8 @@ cmd_setup() {
     [[ "$BAR" =~ ^(dashboard|islands|terminal|none)$ ]] || die "Unknown bar '$BAR'."
     [[ "$WALLPAPER" =~ ^(solid|grid|orbit|logo|cmatrix|cava)$ ]] || die "Unknown wallpaper '$WALLPAPER'."
     [[ "$PROMPT" =~ ^(minimal|info|hacker|off)$ ]] || die "Unknown prompt '$PROMPT'."
+    [[ "$USER_SHELL" =~ ^(bash|fish)$ ]] || die "Unknown shell '$USER_SHELL' (bash or fish)."
+    [[ "$AUTO_UPDATE" =~ ^(off|ask|auto)$ ]] || die "Unknown auto-update '$AUTO_UPDATE' (off, ask or auto)."
     if $INTERACTIVE; then setup_wizard; else setup_summary; fi
     setup_run
 }
@@ -393,6 +421,7 @@ cmd_menu() {
             "$(lbl_wall)::wall" \
             "$(lbl_bar)::bar" \
             "$(lbl_prompt)::prompt" \
+            "$(lbl_shell)::shell" \
             "Shortcuts    every keyboard shortcut and what it does::shortcuts" \
             "$(lbl_keys)::keys" \
             "Apps         install or remove::apps" \
@@ -403,6 +432,7 @@ cmd_menu() {
             "$(lbl_system)::system" \
             "$(lbl_monitors)::monitors" \
             "Update       system + Waterbear (you have $WB_VERSION)::update" \
+            "$(lbl_auto) · checks GitHub at login::auto" \
             "Quit::quit") || exit 0
         case "$c" in
             theme)  cmd_theme ;;
@@ -415,6 +445,9 @@ cmd_menu() {
                     state_save; apply_all ;;
             prompt) local pr; pr=$(pick_prompt) || continue; PROMPT="$pr"
                     [[ "$PROMPT" != off ]] && ! pkg_installed starship && { need_sudo; pac starship; }
+                    state_save; apply_all; info "Open a new terminal to see it." ; ui_pause ;;
+            shell)  local sh; sh=$(pick_shell) || continue; USER_SHELL="$sh"
+                    [[ "$USER_SHELL" == fish ]] && ! pkg_installed fish && { need_sudo; pac fish; }
                     state_save; apply_all; info "Open a new terminal to see it." ; ui_pause ;;
             shortcuts) show_shortcuts ;;
             keys)   local kb; kb=$(pick_keybinds) || continue; KEYBINDS="$kb"; state_save; apply_all
@@ -430,6 +463,8 @@ cmd_menu() {
             monitors) cmd_monitors ;;
             update) waterbear_update || true; ui_pause
                     exec "$WB_HOME/waterbear" menu ;;   # reopen with the (possibly new) version
+            auto)   local au; au=$(pick_autoupdate) || continue; AUTO_UPDATE="$au"; state_save
+                    ok "Auto-update: $AUTO_UPDATE (next check: your next login)"; ui_pause ;;
             quit)   exit 0 ;;
         esac
     done
@@ -471,8 +506,16 @@ case "${1:-menu}" in
     setup)    shift; cmd_setup "$@" ;;
     theme)    shift; cmd_theme "${1:-}" "${2:-}" ;;
     bar)      state_load; BAR="${2:-$(pick_bar)}"; state_save; apply_all; ok "Bar: $BAR" ;;
+    shell)    state_load; v="${2:-$(pick_shell)}" || exit 0
+              [[ "$v" =~ ^(bash|fish)$ ]] || die "Unknown shell '$v' (bash or fish)."
+              USER_SHELL="$v"; [[ "$v" == fish ]] && ! pkg_installed fish && { need_sudo; pac fish; }
+              state_save; apply_all; ok "Shell: $USER_SHELL (open a new terminal to see it)" ;;
     apps)     state_load; sel=$(pick_apps) && { need_sudo; apps_sync "$sel"; state_save; apply_all; } ;;
     update)   state_load; waterbear_update ;;
+    autoupdate) if [[ -n "${2:-}" ]]; then
+                    state_load; [[ "$2" =~ ^(off|ask|auto)$ ]] || die "Unknown auto-update '$2' (off, ask or auto)."
+                    AUTO_UPDATE="$2"; state_save; ok "Auto-update: $AUTO_UPDATE"
+                else cmd_autoupdate; fi ;;
     monitors) cmd_monitors ;;
     snapshot) state_load; snapshot_now "${2:-manual-$(date +%F)}" ;;
     apply)    state_load; apply_all; ok "Configs refreshed." ;;

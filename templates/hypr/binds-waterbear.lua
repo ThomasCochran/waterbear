@@ -24,7 +24,6 @@ hl.bind(key("ALT + V"),        hl.dsp.exec_cmd(bin .. "clipboard.sh"))          
 hl.bind(key("H"),              hl.dsp.exec_cmd("kitty --class keyhelp -e waterbear shortcuts"))
 hl.bind(key("SHIFT + K"),      hl.dsp.exec_cmd(bin .. "keybind-search.sh"))
 hl.bind(key("I"),              hl.dsp.exec_cmd(bin .. "status.sh"))                  -- time/battery/wifi popup
-hl.bind(key("T"),              hl.dsp.exec_cmd("kitty --class waterbear-menu -e waterbear theme"))  -- theme picker
 hl.bind(key("W"),              hl.dsp.exec_cmd("pkill -SIGUSR1 -x waybar || " .. bin .. "waterbear-bar"))  -- show/hide the bar
 
 -----------------

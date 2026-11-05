@@ -17,7 +17,6 @@ KEYBINDS  ·  press q to close
 | Super + I | Status popup (time, battery, wifi, volume) |
 | Super + W | Show / hide the status bar |
 | Super + Alt + Space | Waterbear menu (themes, apps, settings, all shortcuts, update) |
-| Super + T | Theme picker |
 
 ## Windows
 | Shortcut | Action |

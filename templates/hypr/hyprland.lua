@@ -26,6 +26,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("wl-paste --type text --watch cliphist store")
     hl.exec_cmd("wl-paste --type image --watch cliphist store")
     hl.exec_cmd("[ -x ~/.local/bin/weekly-snapshot-login.sh ] && ~/.local/bin/weekly-snapshot-login.sh")  -- weekly snapshot (if enabled)
+    hl.exec_cmd("~/.local/bin/waterbear autoupdate")               -- check GitHub for a newer Waterbear (menu → Auto-update)
     hl.exec_cmd("kitty")                                    -- open a terminal on login (shows fastfetch, like every new one)
 end)
 
@@ -197,7 +198,7 @@ hl.window_rule({
     center = true,
 })
 
--- Waterbear menu and theme picker open as centered floating terminals
+-- The Waterbear menu (and the update window it opens) are centered floating terminals
 hl.window_rule({
     name   = "waterbear-menu",
     match  = { class = "^waterbear-menu$" },

@@ -287,3 +287,70 @@ waterbear_update() {
     echo "waterbear update — $(date "+%F %T") — OK (version $new)" > "$WB_UPDATE_LOG"
     ok "System and Waterbear updated."
 }
+
+# ---------------------------------------------------------------------------
+# Auto-update: run at every Hyprland login (`waterbear autoupdate`, started by hyprland.lua).
+# Checks the VERSION file on GitHub; if it's newer than the installed one:
+#   ask  → a notification with an "Update now" button (opens the full `waterbear update`)
+#   auto → updates Waterbear itself quietly (no password needed), then notifies.
+#          System packages need your password, so they stay with the manual Update.
+# ---------------------------------------------------------------------------
+version_newer() {  # version_newer A B — true if version A is newer than B
+    [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" == "$1" ]]
+}
+
+wb_notify() {  # wb_notify URGENCY TITLE BODY [notify-send args...]
+    local u="$1" t="$2" b="$3"; shift 3
+    command -v notify-send > /dev/null || return 0
+    notify-send -u "$u" -a Waterbear "$@" "$t" "$b" 2> /dev/null || true
+}
+
+cmd_autoupdate() {
+    state_load
+    [[ "$AUTO_UPDATE" == off ]] && return 0
+    local cache="${XDG_CACHE_HOME:-$HOME/.cache}/waterbear"
+    mkdir -p "$cache"
+    exec 9> "$cache/autoupdate.lock"
+    flock -n 9 || return 0   # already checking (e.g. Hyprland restarted)
+
+    # Wait for the network after login: try for about 3 minutes, then give up until the next login
+    local remote="" i
+    for i in $(seq 1 18); do
+        remote=$(curl -fsSL --max-time 10 "$WB_RAW_URL/VERSION" 2> /dev/null | tr -d '[:space:]') || remote=""
+        [[ "$remote" =~ ^[0-9]+(\.[0-9]+)*$ ]] && break
+        remote=""; sleep 10
+    done
+    [[ -n "$remote" ]] || return 0
+    version_newer "$remote" "$WB_VERSION" || return 0
+
+    if [[ "$AUTO_UPDATE" == auto ]]; then
+        # Never set hand-made changes aside without asking: fall back to the "ask" notification
+        if [[ -d "$WB_HOME/.git" && -n "$(git -C "$WB_HOME" status --porcelain 2> /dev/null)" ]]; then
+            :
+        else
+            INTERACTIVE=false
+            local problem=""
+            if ! wb_self_update > /dev/null 2>&1; then problem="$WB_UPDATE_ERR"
+            elif ! "$WB_HOME/waterbear" apply > /dev/null 2>&1; then problem="Downloaded $remote, but refreshing configs ('waterbear apply') failed. Run it in a terminal to see why."
+            fi
+            if [[ -z "$problem" ]]; then
+                echo "waterbear auto-update — $(date '+%F %T') — OK ($WB_VERSION → $remote)" > "$WB_UPDATE_LOG"
+                wb_notify normal "Waterbear updated to $remote" "You had $WB_VERSION. System packages: Waterbear menu → Update."
+                return 0
+            fi
+            echo "waterbear auto-update — $(date '+%F %T') — FAILED: $problem" > "$WB_UPDATE_LOG"
+            wb_notify critical "Waterbear auto-update failed" "$problem (details: $WB_UPDATE_LOG)"
+            return 1
+        fi
+    fi
+
+    # ask: the notification waits for a click; "Update now" opens the full update in a terminal
+    local action
+    action=$(notify-send -u normal -a Waterbear --wait --action=update="Update now" \
+        "Waterbear $remote is available" "You have $WB_VERSION. Update now: snapshot → system update → new Waterbear." 2> /dev/null) || true
+    if [[ "$action" == update ]]; then
+        setsid kitty --class waterbear-menu -e bash -c \
+            '"$1" update; echo; read -rsn1 -p "  press any key to close"' _ "$WB_BIN/waterbear" > /dev/null 2>&1 &
+    fi
+    return 0
+}
