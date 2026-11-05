@@ -1,0 +1,20 @@
+/* ~/.config/waybar/style.css — Terminal */
+* { font-family: "JetBrainsMono Nerd Font"; font-size: 11px; border: none; border-radius: 0; min-height: 0; }
+window#waybar { background: #@@BG@@; color: #@@FG@@; border-bottom: 1px solid #@@A@@; }
+tooltip { background: #@@BG@@; border: 1px solid #@@A@@; }
+tooltip label { color: #@@FG@@; }
+#workspaces { margin-left: 4px; }
+#workspaces button { padding: 0 3px; color: #@@DIM@@; background: transparent; }
+#workspaces button.active { color: #@@B@@; }
+#workspaces button:hover { color: #@@FG@@; background: transparent; box-shadow: none; }
+#custom-cpumeter, #custom-gpumeter, #memory, #network, #wireplumber, #battery, #clock {
+    padding: 0 8px; color: #@@FG@@; border-left: 1px solid #@@C8@@;
+}
+#custom-cpumeter.hot, #custom-gpumeter.hot { color: #@@C1@@; }
+#custom-gpumeter.off { color: #@@DIM@@; }
+#network { color: #@@C2@@; }
+#network.disconnected { color: #@@C1@@; }
+#battery { color: #@@C2@@; }
+#battery.warning:not(.charging) { color: #@@C3@@; }
+#battery.critical:not(.charging) { color: #@@C1@@; }
+#clock { color: #@@B@@; margin-right: 4px; }

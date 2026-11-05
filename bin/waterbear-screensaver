@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# waterbear-screensaver — opened by hypridle when you're idle. Any activity closes it
+# (hypridle's on-resume kills it) and the lock screen takes over at the lock timeout.
+STATE="$HOME/.config/waterbear/state.conf"
+SAVER=cmatrix
+[[ -f "$STATE" ]] && SAVER=$(. "$STATE"; echo "${SAVER:-cmatrix}")
+[[ "$SAVER" == random ]] && SAVER=cmatrix   # old setting
+
+P_RAIN=00ffff; P_BG=000000
+[[ -f "$HOME/.cache/waterbear/palette.sh" ]] && . "$HOME/.cache/waterbear/palette.sh"
+case "$SAVER" in
+    cmatrix) command -v cmatrix > /dev/null && cmd="cmatrix -s -b -C cyan" || cmd="$HOME/.local/bin/waterbear-clock --saver" ;;
+    clock)   cmd="$HOME/.local/bin/waterbear-clock --saver" ;;
+    *)       exit 0 ;;
+esac
+pgrep -f "class waterbear-screensaver" > /dev/null && exit 0
+exec kitty --class waterbear-screensaver -o confirm_os_window_close=0 \
+    -o "background=#$P_BG" -o "color6=#$P_RAIN" sh -c "$cmd"

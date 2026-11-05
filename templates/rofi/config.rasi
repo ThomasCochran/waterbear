@@ -1,0 +1,13 @@
+/* ~/.config/rofi/config.rasi */
+configuration {
+    modi: "drun,run,window,calc,emoji";
+    show-icons: true;
+    drun-display-format: "{name}";
+    display-drun: "apps";
+    display-run: "run";
+    display-window: "windows";
+    display-calc: "calc";
+    display-emoji: "emoji";
+    font: "JetBrainsMono Nerd Font 12";
+}
+@theme "~/.config/rofi/neon.rasi"

@@ -1,0 +1,38 @@
+# ~/.config/starship.toml — Waterbear "hacker" prompt (generated)
+add_newline = true
+format = """
+[┌─\\[](#@@C8@@)$username[@](#@@DIM@@)$hostname[\\]─\\[](#@@C8@@)$directory[\\]](#@@C8@@)$git_branch$git_status$cmd_duration
+[└─](#@@C8@@)$character"""
+
+[username]
+show_always = true
+format = "[$user]($style)"
+style_user = "bold #@@A@@"
+style_root = "bold #@@C1@@"
+
+[hostname]
+ssh_only = false
+format = "[$hostname]($style)"
+style = "#@@B@@"
+
+[directory]
+format = "[$path]($style)"
+style = "#@@FG@@"
+truncation_length = 4
+
+[git_branch]
+format = "[─\\[](#@@C8@@)[$branch]($style)[\\]](#@@C8@@)"
+style = "#@@C2@@"
+
+[git_status]
+format = "[$all_status$ahead_behind]($style)"
+style = "#@@C3@@"
+
+[cmd_duration]
+format = " [$duration]($style)"
+style = "#@@DIM@@"
+min_time = 2000
+
+[character]
+success_symbol = "[❯](bold #@@B@@)"
+error_symbol = "[❯](bold #@@C1@@)"

@@ -1,0 +1,20 @@
+/* ~/.config/waybar/style.css — Dashboard */
+* { font-family: "JetBrainsMono Nerd Font"; font-size: 12px; border: none; border-radius: 0; min-height: 0; }
+window#waybar { background: #@@C0@@; color: #@@FG@@; border-bottom: 1px solid #@@C8@@; }
+tooltip { background: #@@BG@@; border: 1px solid #@@A@@; border-radius: 4px; }
+tooltip label { color: #@@FG@@; }
+#workspaces { margin-left: 6px; }
+#workspaces button { padding: 0 6px; margin: 4px 2px; color: #@@DIM@@; background: transparent; border-radius: 3px; }
+#workspaces button.active { background: #@@A@@; color: #@@BG@@; }
+#workspaces button.empty { color: #@@C8@@; }
+#workspaces button:hover { background: #@@C8@@; color: #@@FG@@; box-shadow: none; }
+#clock.date { color: #@@DIM@@; padding: 0 10px; margin-left: 6px; border-left: 1px solid #@@C8@@; }
+#clock.time { color: #@@B@@; font-size: 13px; }
+#cpu, #custom-cputemp, #custom-gpu, #memory, #network, #wireplumber, #battery { padding: 0 7px; color: #@@FG@@; }
+#custom-cputemp { color: #@@C3@@; padding-left: 0; }
+#custom-cputemp.hot, #custom-gpu.hot { color: #@@C1@@; }
+#custom-gpu.off { color: #@@C8@@; }
+#network.disconnected, #wireplumber.muted { color: #@@DIM@@; }
+#battery { color: #@@C2@@; margin-right: 6px; }
+#battery.warning:not(.charging) { color: #@@C3@@; }
+#battery.critical:not(.charging) { color: #@@C1@@; }

@@ -1,0 +1,6 @@
+[Unit]
+Description=Weekly Snapper snapshot (checked at login)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/auto-snapshot.sh

@@ -1,0 +1,18 @@
+# ~/.config/starship.toml — Waterbear "minimal" prompt (generated)
+add_newline = false
+format = "$directory$git_branch$git_status$character"
+
+[directory]
+style = "bold #@@A@@"
+truncation_length = 3
+
+[git_branch]
+format = "[$symbol$branch]($style) "
+style = "#@@B@@"
+
+[git_status]
+style = "#@@C3@@"
+
+[character]
+success_symbol = "[❯](bold #@@B@@)"
+error_symbol = "[❯](bold #@@C1@@)"

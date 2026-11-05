@@ -1,0 +1,60 @@
+/* ~/.config/rofi/neon.rasi — neon color scheme */
+* {
+    bg:      #020a17ee;
+    bg-alt:  #@@C0@@;
+    fg:      #@@FG@@;
+    dim:     #@@DIM@@;
+    neon:    #@@A@@;
+    blue:    #@@B@@;
+
+    background-color: transparent;
+    text-color: @fg;
+    margin: 0;
+    padding: 0;
+    spacing: 0;
+}
+
+window {
+    width: 38%;
+    background-color: @bg;
+    border: 2px;
+    border-color: @neon;
+    border-radius: 4px;
+    padding: 14px;
+}
+
+mainbox { spacing: 10px; }
+
+inputbar {
+    children: [ prompt, textbox-prompt-colon, entry ];
+    background-color: @bg-alt;
+    border: 0 0 1px 0;
+    border-color: @blue;
+    padding: 8px 10px;
+    spacing: 6px;
+}
+prompt               { text-color: @neon; }
+textbox-prompt-colon { str: ">"; expand: false; text-color: @neon; }
+entry                { placeholder: "_"; placeholder-color: @dim; cursor: text; }
+
+listview {
+    lines: 10;
+    scrollbar: false;
+    spacing: 2px;
+}
+
+element {
+    padding: 6px 10px;
+    spacing: 8px;
+    border-radius: 2px;
+}
+element normal.normal, element alternate.normal { text-color: @fg; }
+element selected.normal {
+    background-color: @neon;
+    text-color: #@@BG@@;
+}
+element-icon { size: 1.1em; }
+element-text { text-color: inherit; }
+
+message  { padding: 6px; border: 1px; border-color: @blue; }
+textbox  { text-color: @fg; }

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# waterbear-wallpaper — shows your Waterbear background. Runs at login; Waterbear restarts it after changes.
+#   solid               Hyprland's own background color (nothing to run)
+#   grid / orbit / logo a generated image, shown with hyprpaper
+#   cmatrix / cava      a live terminal background (kitty panel); falls back to solid on battery
+#                       unless you allowed live wallpapers on battery
+STATE="$HOME/.config/waterbear/state.conf"
+CACHE="$HOME/.cache/waterbear"
+PNG="$CACHE/wallpaper/wallpaper.png"
+WALLPAPER=solid; LIVE_ON_BATTERY=no
+# shellcheck disable=SC1090
+[[ -f "$STATE" ]] && . "$STATE"
+[[ -f "$CACHE/palette.sh" ]] && . "$CACHE/palette.sh"
+
+on_battery() {
+    ls /sys/class/power_supply/BAT* > /dev/null 2>&1 || return 1   # no battery = desktop
+    ! grep -qsx 1 /sys/class/power_supply/A*/online
+}
+stop_live()   { pkill -f -- '--edge=background' 2>/dev/null; }
+stop_static() { pkill -x hyprpaper 2>/dev/null; }
+start_static() { [[ -f "$PNG" ]] && (setsid hyprpaper > /dev/null 2>&1 &); }
+start_live() {
+    local cmd=()
+    case "$WALLPAPER" in
+        cmatrix) cmd=(cmatrix -b -u 6 -C cyan) ;;      # cyan is recolored to your theme's accent below
+        cava)    cmd=(cava -p "$CACHE/cava-wallpaper.conf") ;;
+    esac
+    command -v "${cmd[0]}" > /dev/null || return 1
+    (setsid kitty +kitten panel --edge=background \
+        -o "background=#${P_BG:-000000}" -o "foreground=#${P_FG:-ffffff}" -o "color6=#${P_RAIN:-00ffff}" \
+        -o background_opacity=1 -o font_size=11 "${cmd[@]}" > /dev/null 2>&1 &)
+}
+
+if [[ "${1:-}" != --loop ]]; then
+    pkill -f 'waterbear-wallpaper --loop' 2>/dev/null
+    stop_live; stop_static
+    case "$WALLPAPER" in
+        grid|orbit|logo) start_static ;;
+        cmatrix|cava)    (setsid "$0" --loop > /dev/null 2>&1 &) ;;
+    esac
+    exit 0
+fi
+
+# Live wallpaper: switch between live and solid when the charger is plugged in / unplugged
+mode=""
+while true; do
+    want=live
+    [[ "$LIVE_ON_BATTERY" == no ]] && on_battery && want=off
+    if [[ "$want" != "$mode" ]]; then
+        stop_live
+        [[ "$want" == live ]] && start_live
+        mode="$want"
+    fi
+    sleep 30
+done

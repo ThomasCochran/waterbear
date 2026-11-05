@@ -1,0 +1,180 @@
+# lib/core.sh — shared pieces: paths, saved settings, color schemes, templating, menus.
+# Sourced by the `waterbear` command.
+
+WB_HOME="${WATERBEAR_HOME:-$HOME/.local/share/waterbear}"
+WB_CONF="$HOME/.config/waterbear"
+WB_STATE="$WB_CONF/state.conf"
+WB_REPO_URL="https://github.com/ThomasCochran/waterbear.git"
+WB_BIN="$HOME/.local/bin"
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+c_cyan=$'\033[1;36m'; c_yel=$'\033[1;33m'; c_red=$'\033[1;31m'; c_grn=$'\033[1;32m'
+c_dim=$'\033[2m'; c_off=$'\033[0m'
+step() { printf '\n%s==>%s %s\n' "$c_cyan" "$c_off" "$1"; }
+ok()   { printf '%s ok%s %s\n' "$c_grn" "$c_off" "$1"; }
+info() { printf '    %s\n' "$1"; }
+warn() { printf '%s !!%s %s\n' "$c_yel" "$c_off" "$1"; }
+die()  { printf '%s xx%s %s\n' "$c_red" "$c_off" "$1" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
+# Saved settings (~/.config/waterbear/state.conf)
+# ---------------------------------------------------------------------------
+STATE_KEYS=(SCHEME ACCENT WALLPAPER LIVE_ON_BATTERY LOCK_BG BAR KEYBINDS PROMPT SAVER SAVER_ON_BATTERY IDLE_PRESET IDLE_SAVER IDLE_LOCK IDLE_OFF
+            IDLE_SUSPEND LOGIN SNAPPER SNAPPER_WEEKLY FIREWALL FW_PORTS YAY APPS)
+
+state_defaults() {
+    SCHEME=abyss; ACCENT=""; WALLPAPER=solid; LIVE_ON_BATTERY=no; LOCK_BG=solid; BAR=dashboard; KEYBINDS=waterbear; PROMPT=hacker
+    SAVER=cmatrix; SAVER_ON_BATTERY=no
+    IDLE_PRESET=normal; IDLE_SAVER=4; IDLE_LOCK=5; IDLE_OFF=7; IDLE_SUSPEND=20
+    LOGIN=text; SNAPPER=yes; SNAPPER_WEEKLY=yes
+    FIREWALL=yes; FW_PORTS="ssh"; YAY=no; APPS="btop clock"
+}
+
+state_load() {
+    state_defaults
+    # shellcheck disable=SC1090
+    [[ -f "$WB_STATE" ]] && . "$WB_STATE"
+    [[ "$SAVER" == random ]] && SAVER=cmatrix   # "random" was removed
+    return 0
+}
+
+state_save() {
+    mkdir -p "$WB_CONF"
+    {
+        echo "# Waterbear settings — change them with the \`waterbear\` menu (or edit, then run: waterbear apply)"
+        local k
+        for k in "${STATE_KEYS[@]}"; do printf '%s="%s"\n' "$k" "${!k}"; done
+    } > "$WB_STATE"
+}
+
+has_app() { [[ " $APPS " == *" $1 "* ]]; }
+add_app() { has_app "$1" || APPS="${APPS:+$APPS }$1"; }
+del_app() { APPS=" $APPS "; APPS="${APPS// $1 / }"; APPS="${APPS# }"; APPS="${APPS% }"; }
+
+# ---------------------------------------------------------------------------
+# Color schemes
+# ---------------------------------------------------------------------------
+scheme_list() { local f; for f in "$WB_HOME"/schemes/*; do basename "$f"; done; }
+
+scheme_desc() { ( . "$WB_HOME/schemes/$1"; echo "$DESC" ); }
+
+# Accent choices for schemes that offer them (e.g. Noir): prints "name:hex" lines, or nothing
+scheme_accents() { ( ACCENTS=""; . "$WB_HOME/schemes/$1"; tr ' ' '\n' <<< "$ACCENTS" | grep . ) || true; }
+scheme_accent_default() { ( ACCENT_DEFAULT=""; . "$WB_HOME/schemes/$1"; echo "$ACCENT_DEFAULT" ); }
+
+# Loads the palette for $1 into P_BG P_FG P_A P_B P_DIM P_C0..P_C15
+scheme_load() {
+    [[ -f "$WB_HOME/schemes/$1" ]] || die "Unknown scheme '$1'. Options: $(scheme_list | tr '\n' ' ')"
+    local PALETTE DESC ACCENTS="" ACCENT_DEFAULT="" p
+    # shellcheck disable=SC1090
+    . "$WB_HOME/schemes/$1"
+    read -ra p <<< "$PALETTE"
+    P_BG=${p[0]}; P_FG=${p[1]}; P_A=${p[2]}; P_B=${p[3]}; P_DIM=${p[4]}
+    local i; for i in $(seq 0 15); do printf -v "P_C$i" '%s' "${p[$((i + 5))]}"; done
+    P_NAME="$1"; P_RAIN="$P_A"
+    # Schemes with a pickable accent: the chosen color becomes accent 2 (borders, cursor, clock, prompt)
+    if [[ -n "$ACCENTS" ]]; then
+        local want="${ACCENT:-$ACCENT_DEFAULT}" pair hex=""
+        for pair in $ACCENTS; do [[ "${pair%%:*}" == "$want" ]] && hex="${pair#*:}"; done
+        [[ -z "$hex" ]] && { want="$ACCENT_DEFAULT"; for pair in $ACCENTS; do [[ "${pair%%:*}" == "$want" ]] && hex="${pair#*:}"; done; }
+        [[ -n "$hex" ]] && { P_B="$hex"; P_RAIN="$hex"; }
+        P_NAME="$1 ($want)"
+    fi
+}
+
+# render SRC DEST [MODE] — fill @@...@@ placeholders with the loaded palette
+render() {
+    local src="$WB_HOME/templates/$1" dest="$2" mode="${3:-644}"
+    [[ -f "$src" ]] || die "Missing template: $1"
+    local args=(-e "s/@@BG@@/$P_BG/g" -e "s/@@FG@@/$P_FG/g" -e "s/@@A@@/$P_A/g" -e "s/@@B@@/$P_B/g"
+                -e "s/@@DIM@@/$P_DIM/g" -e "s/@@RAIN@@/$P_RAIN/g" -e "s/@@SCHEME_NAME@@/$P_NAME/g")
+    local i v; for i in $(seq 15 -1 0); do v="P_C$i"; args+=(-e "s/@@C$i@@/${!v}/g"); done
+    mkdir -p "$(dirname "$dest")"
+    sed "${args[@]}" "$src" > "$dest"
+    chmod "$mode" "$dest"
+}
+
+# ---------------------------------------------------------------------------
+# Menus (gum). INTERACTIVE=false makes every question take its default.
+# ---------------------------------------------------------------------------
+INTERACTIVE=true
+
+ui_colors() {  # color gum with the current scheme
+    export GUM_CHOOSE_CURSOR_FOREGROUND="#$P_B" GUM_CHOOSE_HEADER_FOREGROUND="#$P_A"
+    export GUM_CHOOSE_SELECTED_FOREGROUND="#$P_A" GUM_CHOOSE_ITEM_FOREGROUND="#$P_FG"
+    export GUM_CONFIRM_PROMPT_FOREGROUND="#$P_FG" GUM_CONFIRM_SELECTED_BACKGROUND="#$P_A"
+    export GUM_CONFIRM_SELECTED_FOREGROUND="#$P_BG" GUM_CONFIRM_UNSELECTED_FOREGROUND="#$P_DIM"
+    export GUM_INPUT_HEADER_FOREGROUND="#$P_A" GUM_INPUT_PROMPT_FOREGROUND="#$P_B"
+    export GUM_INPUT_CURSOR_FOREGROUND="#$P_B"
+    export GUM_CHOOSE_CURSOR="❯ " GUM_CHOOSE_SELECTED_PREFIX="[x] " GUM_CHOOSE_UNSELECTED_PREFIX="[ ] "
+    export GUM_CHOOSE_CURSOR_PREFIX="[ ] "
+}
+
+ui_title() {  # big header box
+    $INTERACTIVE || return 0
+    clear
+    gum style --border rounded --border-foreground "#$P_A" --foreground "#$P_B" \
+        --padding "0 2" --margin "0 1" "Waterbear  ·  $1"
+}
+
+# ui_pick HEADER DEFAULT "label::value"...  -> prints chosen value
+ui_pick() {
+    local header="$1" def="$2"; shift 2
+    if ! $INTERACTIVE; then echo "$def"; return 0; fi
+    local labels=() values=() o sel=""
+    # gum separates --selected items with commas, so labels use a look-alike comma (‚)
+    for o in "$@"; do o="${o%%::*}"; labels+=("${o//,/‚}"); done
+    for o in "$@"; do values+=("${o##*::}"); done
+    local i; for i in "${!values[@]}"; do [[ "${values[$i]}" == "$def" ]] && sel="${labels[$i]}"; done
+    local got
+    got=$(gum choose --header "$header" ${sel:+--selected "$sel"} "${labels[@]}") || return 1
+    for i in "${!labels[@]}"; do [[ "${labels[$i]}" == "$got" ]] && { echo "${values[$i]}"; return 0; }; done
+    return 1
+}
+
+# ui_checks HEADER "on values" "label::value"...  -> prints chosen values, space separated
+ui_checks() {
+    local header="$1" on="$2"; shift 2
+    if ! $INTERACTIVE; then echo "$on"; return 0; fi
+    local labels=() values=() o sel=()
+    local l
+    for o in "$@"; do
+        l="${o%%::*}"; l="${l//,/‚}"
+        labels+=("$l"); values+=("${o##*::}")
+        [[ " $on " == *" ${o##*::} "* ]] && sel+=("$l")
+    done
+    local selected; selected=$(IFS=,; echo "${sel[*]}")
+    local got
+    got=$(gum choose --no-limit --header "$header  (x or tab = tick, enter = done)" \
+          ${selected:+--selected "$selected"} "${labels[@]}") || return 1
+    local out=() line i
+    while IFS= read -r line; do
+        for i in "${!labels[@]}"; do [[ "${labels[$i]}" == "$line" ]] && out+=("${values[$i]}"); done
+    done <<< "$got"
+    echo "${out[*]}"
+}
+
+ui_confirm() {  # ui_confirm QUESTION DEFAULT(y/n)
+    if ! $INTERACTIVE; then [[ "$2" == y ]]; return; fi
+    if [[ "$2" == y ]]; then gum confirm "$1"; else gum confirm --default=false "$1"; fi
+}
+
+ui_input() {  # ui_input HEADER DEFAULT
+    if ! $INTERACTIVE; then echo "$2"; return 0; fi
+    gum input --header "$1" --value "$2"
+}
+
+ui_pause() { $INTERACTIVE && { echo; read -rsn1 -p "  press any key to continue"; echo; }; return 0; }
+
+need_sudo() { sudo -v || die "This needs your password (sudo)."; }
+
+on_arch() { [[ -f /etc/arch-release ]]; }
+
+pkg_installed() { pacman -Q "$1" > /dev/null 2>&1; }
+
+pac() {  # pac PKG... — install official packages, skipping installed ones
+    [[ $# -eq 0 ]] && return 0
+    sudo pacman -S --needed --noconfirm "$@"
+}

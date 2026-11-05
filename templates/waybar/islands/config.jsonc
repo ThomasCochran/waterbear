@@ -1,0 +1,93 @@
+// ~/.config/waybar/config.jsonc — Waterbear "islands" bar (Super+W shows/hides it)
+{
+  "layer": "top",
+  "position": "top",
+  "spacing": 0,
+  "reload_style_on_change": true,
+  "height": 28,
+  "margin-top": 6,
+  "margin-left": 10,
+  "margin-right": 10,
+  "modules-left": [
+    "hyprland/workspaces"
+  ],
+  "modules-center": [
+    "clock",
+    "group/stats"
+  ],
+  "modules-right": [
+    "group/sys"
+  ],
+  "hyprland/workspaces": {
+    "format": "{name}",
+    "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({workspace=\"e+1\"})'",
+    "on-scroll-down": "hyprctl dispatch 'hl.dsp.focus({workspace=\"e-1\"})'",
+    "persistent-workspaces": {
+      "*": 3
+    }
+  },
+  "clock": {
+    "format": "{:%a · %m/%d/%Y · %I:%M %p}",
+    "tooltip-format": "<tt>{calendar}</tt>"
+  },
+  "group/stats": {
+    "orientation": "horizontal",
+    "modules": [
+      "custom/cpumini",
+      "custom/gpumini",
+      "memory"
+    ]
+  },
+  "custom/cpumini": {
+    "exec": "~/.local/bin/waybar-sys.sh cpu-mini",
+    "return-type": "json",
+    "interval": 3
+  },
+  "custom/gpumini": {
+    "exec": "~/.local/bin/waybar-sys.sh gpu-mini",
+    "return-type": "json",
+    "interval": 5
+  },
+  "memory": {
+    "format": "MEM {used:0.1f}G",
+    "interval": 5,
+    "tooltip-format": "{used:0.1f}G of {total:0.1f}G used"
+  },
+  "group/sys": {
+    "orientation": "horizontal",
+    "modules": [
+      "network",
+      "wireplumber",
+      "battery"
+    ]
+  },
+  "network": {
+    "format-wifi": "󰖩",
+    "format-ethernet": "󰈀",
+    "format-disconnected": "󰖪",
+    "tooltip-format-wifi": "{essid} ({signalStrength}%)",
+    "tooltip-format-ethernet": "{ifname}"
+  },
+  "wireplumber": {
+    "format": "󰕾  {volume}",
+    "format-muted": "󰖁",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+  },
+  "battery": {
+    "format": "{icon}  {capacity}%",
+    "format-charging": "󰂄  {capacity}%",
+    "format-icons": [
+      "󰂎",
+      "󰁺",
+      "󰁼",
+      "󰁾",
+      "󰂀",
+      "󰁹"
+    ],
+    "states": {
+      "warning": 25,
+      "critical": 10
+    },
+    "tooltip-format": "{timeTo}"
+  }
+}

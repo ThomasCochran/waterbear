@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="@@W@@" height="@@H@@" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <!-- Waterbear "Orbit" wallpaper (colors filled in from your scheme) -->
+  <defs>
+    <radialGradient id="planet" cx="0.38" cy="0.32" r="0.8">
+      <stop offset="0" stop-color="#@@C8@@"/>
+      <stop offset="1" stop-color="#@@C0@@"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs>
+  <rect width="1920" height="1080" fill="#@@BG@@"/>
+
+  <g transform="rotate(-14 960 540)">
+    <!-- back half of the rings (behind the planet) -->
+    <path d="M 420 540 A 540 120 0 0 1 1500 540" fill="none" stroke="#@@C8@@" stroke-width="3"/>
+    <path d="M 540 540 A 420 88 0 0 1 1380 540" fill="none" stroke="#@@A@@" stroke-width="4" opacity="0.8"/>
+
+    <!-- planet -->
+    <circle cx="960" cy="540" r="200" fill="#@@B@@" opacity="0.18" filter="url(#glow)"/>
+    <circle cx="960" cy="540" r="190" fill="url(#planet)" stroke="#@@B@@" stroke-width="3"/>
+    <path d="M 790 470 Q 960 440 1130 470" fill="none" stroke="#@@C8@@" stroke-width="2" opacity="0.7"/>
+    <path d="M 775 560 Q 960 590 1145 560" fill="none" stroke="#@@C8@@" stroke-width="2" opacity="0.6"/>
+
+    <!-- front half of the rings (over the planet) -->
+    <path d="M 420 540 A 540 120 0 0 0 1500 540" fill="none" stroke="#@@C8@@" stroke-width="3"/>
+    <path d="M 540 540 A 420 88 0 0 0 1380 540" fill="none" stroke="#@@A@@" stroke-width="4"/>
+
+    <!-- moon -->
+    <circle cx="1380" cy="540" r="14" fill="#@@B@@" opacity="0.35" filter="url(#glow)"/>
+    <circle cx="1380" cy="540" r="10" fill="#@@B@@"/>
+  </g>
+</svg>

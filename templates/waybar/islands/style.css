@@ -1,0 +1,21 @@
+/* ~/.config/waybar/style.css — Islands */
+* { font-family: "JetBrainsMono Nerd Font"; font-size: 12px; border: none; border-radius: 0; min-height: 0; }
+window#waybar { background: transparent; color: #@@FG@@; }
+tooltip { background: #@@BG@@; border: 1px solid #@@A@@; border-radius: 4px; }
+tooltip label { color: #@@FG@@; }
+#workspaces, #clock, #stats, #sys {
+    background: #@@C0@@; border: 1px solid #@@A@@; border-radius: 12px; padding: 0 8px;
+}
+#clock { color: #@@B@@; margin-right: 8px; padding: 0 12px; }
+#workspaces button { padding: 0 6px; margin: 3px 1px; color: #@@FG@@; background: transparent; border-radius: 8px; }
+#workspaces button.active { background: #@@A@@; color: #@@BG@@; }
+#workspaces button.empty { color: #@@DIM@@; }
+#workspaces button:hover { background: #@@C8@@; box-shadow: none; }
+#custom-cpumini, #custom-gpumini, #memory { padding: 0 6px; color: #@@FG@@; }
+#custom-cpumini, #custom-gpumini { border-right: 1px solid #@@C8@@; }
+#custom-cpumini.hot, #custom-gpumini.hot { color: #@@C1@@; }
+#custom-gpumini.off { color: #@@DIM@@; }
+#network, #wireplumber, #battery { padding: 0 6px; color: #@@FG@@; }
+#battery { color: #@@C2@@; }
+#battery.warning:not(.charging) { color: #@@C3@@; }
+#battery.critical:not(.charging) { color: #@@C1@@; }

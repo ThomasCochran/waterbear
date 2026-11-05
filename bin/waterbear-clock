@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# waterbear-clock — big terminal clock (12h + date), colored by your terminal theme. Press q to quit.
+# Also used by the screensaver: `waterbear-clock --saver` exits on any key.
+SAVER=false; [[ "${1:-}" == --saver ]] && SAVER=true
+
+declare -A F=(
+ [0]="███ █ █ █ █ █ █ ███" [1]="  █   █   █   █   █" [2]="███   █ ███ █   ███" [3]="███   █ ███   █ ███"
+ [4]="█ █ █ █ ███   █   █" [5]="███ █   ███   █ ███" [6]="███ █   ███ █ █ ███" [7]="███   █   █   █   █"
+ [8]="███ █ █ ███ █ █ ███" [9]="███ █ █ ███   █ ███" [:]="     ░       ░     " [" "]="               "
+)
+row() {  # row CHAR LINE -> 3-wide slice (4 for spacing)
+    local s="${F[$1]}"
+    printf '%s' "${s:$(( $2 * 4 )):3} "
+}
+
+cleanup() { tput cnorm; tput sgr0; clear; exit 0; }
+trap cleanup INT TERM
+tput civis; clear
+
+while true; do
+    t=$(date +%I:%M); ampm=$(date +%p); d=$(date '+%A, %m/%d/%Y')
+    cols=$(tput cols); lines=$(tput lines)
+    width=$(( ${#t} * 4 + 3 ))
+    x=$(( (cols - width) / 2 )); y=$(( (lines - 7) / 2 ))
+    (( x < 0 )) && x=0; (( y < 0 )) && y=0
+    tput cup 0 0; tput ed
+    for line in 0 1 2 3 4; do
+        tput cup $(( y + line )) "$x"
+        tput setaf 6; tput bold
+        for (( i = 0; i < ${#t}; i++ )); do row "${t:$i:1}" "$line"; done
+        if (( line == 4 )); then tput setaf 4; printf ' %s' "$ampm"; fi
+    done
+    tput sgr0; tput setaf 4
+    tput cup $(( y + 6 )) $(( (cols - ${#d}) / 2 )); printf '%s' "$d"
+    tput sgr0
+    if read -rsn1 -t 1 key; then
+        $SAVER && cleanup
+        [[ "$key" == q || "$key" == Q ]] && cleanup
+    fi
+done

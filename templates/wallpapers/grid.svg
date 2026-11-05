@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="@@W@@" height="@@H@@" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <!-- Waterbear "Grid horizon" wallpaper (colors filled in from your scheme) -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#@@BG@@"/>
+      <stop offset="1" stop-color="#@@C0@@"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#@@B@@"/>
+      <stop offset="1" stop-color="#@@A@@"/>
+    </linearGradient>
+    <linearGradient id="floorfade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#@@BG@@" stop-opacity="0.85"/>
+      <stop offset="0.35" stop-color="#@@BG@@" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <mask id="sunstripes">
+      <rect x="0" y="0" width="1920" height="1080" fill="white"/>
+      <rect x="0" y="520" width="1920" height="6" fill="black"/>
+      <rect x="0" y="550" width="1920" height="9" fill="black"/>
+      <rect x="0" y="582" width="1920" height="12" fill="black"/>
+      <rect x="0" y="615" width="1920" height="15" fill="black"/>
+    </mask>
+    <clipPath id="above"><rect x="0" y="0" width="1920" height="640"/></clipPath>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+
+  <!-- sun -->
+  <g clip-path="url(#above)">
+    <circle cx="960" cy="560" r="230" fill="#@@A@@" opacity="0.25" filter="url(#glow)"/>
+    <circle cx="960" cy="560" r="210" fill="url(#sun)" mask="url(#sunstripes)" opacity="0.9"/>
+  </g>
+
+  <!-- floor -->
+  <rect x="0" y="640" width="1920" height="440" fill="#@@BG@@"/>
+  <g stroke="#@@A@@" stroke-width="2" opacity="0.75" fill="none">
+    <line x1="0" y1="652" x2="1920" y2="652"/>
+    <line x1="0" y1="668" x2="1920" y2="668"/>
+    <line x1="0" y1="690" x2="1920" y2="690"/>
+    <line x1="0" y1="722" x2="1920" y2="722"/>
+    <line x1="0" y1="766" x2="1920" y2="766"/>
+    <line x1="0" y1="828" x2="1920" y2="828"/>
+    <line x1="0" y1="914" x2="1920" y2="914"/>
+    <line x1="0" y1="1034" x2="1920" y2="1034"/>
+    <line x1="960" y1="640" x2="960" y2="1080"/>
+    <line x1="960" y1="640" x2="760" y2="1080"/>
+    <line x1="960" y1="640" x2="1160" y2="1080"/>
+    <line x1="960" y1="640" x2="540" y2="1080"/>
+    <line x1="960" y1="640" x2="1380" y2="1080"/>
+    <line x1="960" y1="640" x2="300" y2="1080"/>
+    <line x1="960" y1="640" x2="1620" y2="1080"/>
+    <line x1="960" y1="640" x2="20" y2="1080"/>
+    <line x1="960" y1="640" x2="1900" y2="1080"/>
+    <line x1="960" y1="640" x2="-320" y2="1080"/>
+    <line x1="960" y1="640" x2="2240" y2="1080"/>
+    <line x1="960" y1="640" x2="-760" y2="1080"/>
+    <line x1="960" y1="640" x2="2680" y2="1080"/>
+  </g>
+  <rect x="0" y="640" width="1920" height="440" fill="url(#floorfade)"/>
+
+  <!-- horizon -->
+  <line x1="0" y1="640" x2="1920" y2="640" stroke="#@@B@@" stroke-width="10" opacity="0.5" filter="url(#glow)"/>
+  <line x1="0" y1="640" x2="1920" y2="640" stroke="#@@B@@" stroke-width="3"/>
+</svg>

@@ -1,0 +1,14 @@
+# /etc/greetd/config.toml — hyprlock is the login screen:
+# on boot greetd starts Hyprland for your user, and Hyprland locks itself with hyprlock right away.
+[terminal]
+vt = 1
+
+# Runs once at boot: start Hyprland as you, then lock immediately
+[initial_session]
+command = "env WATERBEAR_LOCK_ON_START=1 start-hyprland"
+user = "@@LOGIN_USER@@"
+
+# After logging out: plain text login that starts Hyprland
+[default_session]
+command = "agreety --cmd start-hyprland"
+user = "greeter"
