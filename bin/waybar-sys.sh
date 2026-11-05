@@ -34,7 +34,7 @@ cpu_usage() {  # % over a short sample
     (( dt > 0 )) && echo $(( (100 * (dt - di)) / dt )) || echo 0
 }
 
-# GPU: sets GPU_STATE (off|on|none), GPU_USE, GPU_TEMP, GPU_NAME
+# GPU: sets GPU_STATE (off|on|none|nodriver), GPU_USE, GPU_TEMP, GPU_NAME
 gpu_read() {
     GPU_STATE=none; GPU_USE=""; GPU_TEMP=""; GPU_NAME="GPU"
     local d
@@ -47,12 +47,17 @@ gpu_read() {
         fi
         if command -v nvidia-smi > /dev/null; then
             local out
-            out=$(timeout 2 nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -1)
-            if [[ -n "$out" ]]; then
+            # nvidia-smi prints its errors on stdout ("NVIDIA-SMI has failed..."), so check the exit code
+            # and that we really got two numbers back
+            if out=$(timeout 2 nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits 2>/dev/null); then
+                out=$(head -1 <<< "$out")
                 GPU_USE="${out%%,*}"; GPU_USE="${GPU_USE// /}"
                 GPU_TEMP="${out##*,}"; GPU_TEMP="${GPU_TEMP// /}"
-                GPU_STATE=on; return
+                [[ "$GPU_USE" =~ ^[0-9]+$ && "$GPU_TEMP" =~ ^[0-9]+$ ]] && { GPU_STATE=on; return; }
             fi
+            GPU_USE=""; GPU_TEMP=""
+            # The card is awake but the driver isn't answering: usually a new driver that needs a reboot
+            lsmod 2>/dev/null | grep -q '^nvidia ' || { GPU_STATE=nodriver; return; }
         fi
         GPU_STATE=off; return
     done
@@ -92,6 +97,7 @@ case "$1" in
             on)   json "${GPU_USE}% ${GPU_TEMP}°" "$GPU_NAME ${GPU_USE}%, ${GPU_TEMP}°C" "$(hot_class "$GPU_TEMP")" ;;
             off)  json "off" "$GPU_NAME is asleep (saving battery)" off ;;
             none) json "—" "No GPU stats available" off ;;
+            nodriver) json "no driver" "NVIDIA driver not loaded. Reboot after installing it; if this stays, run nvidia-smi in a terminal" off ;;
         esac ;;
     gpu-mini)
         gpu_read
@@ -99,6 +105,7 @@ case "$1" in
             on)   json "GPU ${GPU_USE}% ${GPU_TEMP}°" "$GPU_NAME ${GPU_USE}%, ${GPU_TEMP}°C" "$(hot_class "$GPU_TEMP")" ;;
             off)  json "GPU off" "$GPU_NAME is asleep (saving battery)" off ;;
             none) json "GPU —" "No GPU stats available" off ;;
+            nodriver) json "GPU no driver" "NVIDIA driver not loaded. Reboot after installing it; if this stays, run nvidia-smi in a terminal" off ;;
         esac ;;
     gpu-meter)
         gpu_read
@@ -106,6 +113,7 @@ case "$1" in
             on)   json "gpu[$(meter "$GPU_USE")]${GPU_USE}% ${GPU_TEMP}°C" "$GPU_NAME ${GPU_USE}%, ${GPU_TEMP}°C" "$(hot_class "$GPU_TEMP")" ;;
             off)  json "gpu[off]" "$GPU_NAME is asleep (saving battery)" off ;;
             none) json "gpu[—]" "No GPU stats available" off ;;
+            nodriver) json "gpu[no driver]" "NVIDIA driver not loaded. Reboot after installing it; if this stays, run nvidia-smi in a terminal" off ;;
         esac ;;
     *)
         echo "usage: $0 cputemp|gpu|cpu-mini|gpu-mini|cpu-meter|gpu-meter" >&2; exit 1 ;;

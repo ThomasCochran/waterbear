@@ -11,7 +11,7 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 1.0.1 |
+| **Version** | 1.0.2 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |
@@ -48,8 +48,9 @@ Or use the single-file `Installer.sh` from the releases (no clone needed, works 
 chmod +x Installer.sh && ./Installer.sh
 ```
 
-The setup wizard has tabs: **Looks**, **Keybinds**, **Apps**, **System**, **Login**, **Old configs**,
-then **Install**. Arrow keys move, **x** or **Tab** ticks a checkbox, **Enter** confirms, **Esc** goes back one question.
+The setup wizard is laid out like the Waterbear menu: one line per setting (theme, background, bar, prompt,
+keybinds, apps, screensaver, firewall, login, system, old configs) showing what it is set to;
+pick one to change it, then **Install**. Arrow keys move, **x** or **Tab** ticks a checkbox, **Enter** confirms, **Esc** goes back one question.
 `./install.sh --yes` skips the questions and uses the defaults.
 Nothing you pick is final: everything can be changed later in the Waterbear menu (**Super + Alt + Space**).
 

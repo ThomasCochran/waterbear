@@ -255,8 +255,7 @@ EOF
 reload_desktop() {
     [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || return 0
     hyprctl reload > /dev/null 2>&1 || true
-    pkill -x waybar 2>/dev/null || true
-    if [[ "$BAR" != none ]]; then (setsid waybar > /dev/null 2>&1 &); fi
+    (setsid "$WB_BIN/waterbear-bar" > /dev/null 2>&1 &)   # restarts the bar, or just stops it if there's none
     pkill -x hypridle 2>/dev/null; (setsid hypridle > /dev/null 2>&1 &)
     "$WB_BIN/waterbear-wallpaper" > /dev/null 2>&1 || true
     pkill -USR1 -x kitty 2>/dev/null || true   # kitty reloads its config on SIGUSR1

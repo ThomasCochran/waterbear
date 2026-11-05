@@ -9,6 +9,7 @@
 #   waterbear update          snapshot, update the system and Waterbear, refresh configs
 #   waterbear snapshot [DESC] take a snapshot now
 #   waterbear apply           rewrite all configs from your saved settings
+#   waterbear shortcuts       list every keyboard shortcut (also: Super+H)
 #   waterbear version         show which version is installed
 #   waterbear help
 #
@@ -112,10 +113,17 @@ pick_prompt() {
         "off      plain bash prompt (no Starship)::off"
 }
 
-show_shortcuts() {  # the cheat sheet for the keybind set in use (written by apply_all)
-    local f="$HOME/.config/hypr/KEYBINDS.md"
-    [[ -f "$f" ]] || render "hypr/KEYBINDS-$KEYBINDS.md" "$f"
-    less "$f"
+show_shortcuts() {  # the cheat sheet for the keybind set in use. Never exits the menu on a problem.
+    local f="$HOME/.config/hypr/KEYBINDS.md" src="$WB_HOME/templates/hypr/KEYBINDS-$KEYBINDS.md"
+    if [[ ! -f "$f" ]]; then
+        [[ -f "$src" ]] || { warn "No shortcut list found for the '$KEYBINDS' set ($src)."; ui_pause; return 0; }
+        f="$src"
+    fi
+    if command -v less > /dev/null; then less "$f" || true
+    elif command -v gum > /dev/null; then gum pager < "$f" || true
+    else cat "$f"; ui_pause
+    fi
+    return 0
 }
 
 pick_keybinds() {
@@ -197,7 +205,7 @@ pick_apps() {  # prints the new selection
 # First-time setup wizard
 # ---------------------------------------------------------------------------
 BASE_PKGS=(
-    git base-devel nano jq xdg-utils libnotify fastfetch gum
+    git base-devel nano less jq xdg-utils libnotify fastfetch gum
     hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent qt5-wayland qt6-wayland
     gnome-themes-extra dconf hyprlock hypridle hyprsunset hyprshutdown
     kitty firefox thunar rofi rofi-calc rofi-emoji wtype
@@ -217,31 +225,54 @@ setup_summary() {
         "  Old configs $OLD_CONFIGS"
 }
 
+# Labels shared by the setup wizard and the menu, so both list things the same way
+lbl_theme()  { echo "Theme        $SCHEME${ACCENT:+ ($ACCENT)}"; }
+lbl_wall()   { echo "Background   $WALLPAPER · lock screen: $LOCK_BG"; }
+lbl_bar()    { echo "Status bar   $BAR"; }
+lbl_prompt() { echo "Prompt       $PROMPT"; }
+lbl_keys()   { echo "Keybinds     $KEYBINDS set · switch to the other set"; }
+lbl_idle()   { echo "Screensaver  $SAVER · lock after ${IDLE_LOCK} min"; }
+lbl_fw()     { echo "Firewall     $([[ $FIREWALL == yes ]] && echo "on · open: ${FW_PORTS:-nothing}" || echo off)"; }
+lbl_login()  { echo "Login        $([[ $LOGIN == screen ]] && echo hyprlock || echo "text on tty1")"; }
+lbl_system() { echo "System       snapper: $SNAPPER · weekly snapshot: $SNAPPER_WEEKLY · yay: $YAY"; }
+
 setup_wizard() {
+    local last=install
     while true; do
         scheme_load "$SCHEME"; ui_colors
         ui_title "Setup"
-        setup_summary; echo
-        info "You can change all of this later in the Waterbear menu: Super + Alt + Space"; echo
+        info "Pick anything to change it, then Install. You can change all of it later"
+        info "in the Waterbear menu: Super + Alt + Space"; echo
         local tab
-        tab=$(ui_pick "Pick a section to change, then Install" install \
-            "Looks        color scheme · status bar · prompt::looks" \
-            "Keybinds     which keyboard shortcuts::keys" \
-            "Apps         optional apps::apps" \
-            "System       snapshots · firewall · screensaver · yay::system" \
-            "Login        text login or hyprlock login screen::login" \
-            "Old configs  back up or delete existing configs::old" \
+        tab=$(ui_pick "What do you want to set up?" "$last" \
+            "$(lbl_theme)::theme" \
+            "$(lbl_wall)::wall" \
+            "$(lbl_bar)::bar" \
+            "$(lbl_prompt)::prompt" \
+            "$(lbl_keys)::keys" \
+            "Apps         ${APPS:-none}::apps" \
+            "$(lbl_idle)::idle" \
+            "$(lbl_fw)::fw" \
+            "$(lbl_login)::login" \
+            "$(lbl_system)::system" \
+            "Old configs  $OLD_CONFIGS existing hypr/kitty/rofi/waybar configs::old" \
             "Install      ▶ start::install" \
             "Quit::quit") || { ui_confirm "Quit setup?" n && exit 0; continue; }
+        last="$tab"
         local v
         case "$tab" in
-            looks)  ui_steps st_scheme st_accent st_wallpaper st_live_battery st_lock_bg st_bar st_prompt || true ;;
+            theme)  ui_steps st_scheme st_accent || true ;;
+            wall)   pick_wallpaper || true ;;
+            bar)    v=$(pick_bar) && BAR="$v" || true ;;
+            prompt) v=$(pick_prompt) && PROMPT="$v" || true ;;
             keys)   v=$(pick_keybinds) && KEYBINDS="$v" || true ;;
             apps)   v=$(pick_apps) && APPS="$v" || true ;;
-            system) ui_steps st_sys_checks st_fw_on st_fw_ports st_idle_preset st_idle_custom st_saver st_saver_battery || true ;;
+            idle)   pick_idle || true ;;
+            fw)     pick_firewall || true ;;
             login)  v=$(ui_pick "Login" "$LOGIN" \
                         "Text login on tty1 (type username + password, Hyprland starts)::text" \
                         "hyprlock as the login screen (single user: boots locked, same look as your lock screen)::screen") && LOGIN="$v" || true ;;
+            system) ui_steps st_sys_checks || true ;;
             old)    v=$(ui_pick "Existing hypr/kitty/rofi/waybar configs" "$OLD_CONFIGS" \
                         "Back them up to ~/.config/waterbear-backups (keeps the newest 3)::backup" \
                         "Delete them::delete") && OLD_CONFIGS="$v" || true ;;
@@ -356,18 +387,18 @@ cmd_menu() {
         ui_title "Menu"
         local c
         c=$(ui_pick "What do you want to do?" theme \
-            "Theme        $SCHEME${ACCENT:+ ($ACCENT)}::theme" \
-            "Background   $WALLPAPER · lock screen: $LOCK_BG::wall" \
-            "Status bar   $BAR::bar" \
-            "Prompt       $PROMPT::prompt" \
+            "$(lbl_theme)::theme" \
+            "$(lbl_wall)::wall" \
+            "$(lbl_bar)::bar" \
+            "$(lbl_prompt)::prompt" \
             "Shortcuts    every keyboard shortcut and what it does::shortcuts" \
-            "Keybinds     $KEYBINDS set · switch to the other set::keys" \
+            "$(lbl_keys)::keys" \
             "Apps         install or remove::apps" \
-            "Screensaver  $SAVER · lock after ${IDLE_LOCK} min::idle" \
+            "$(lbl_idle)::idle" \
             "Snapshots    list · take one · restore::snaps" \
-            "Firewall     $([[ $FIREWALL == yes ]] && echo "on · open: ${FW_PORTS:-nothing}" || echo off)::fw" \
-            "Login        $([[ $LOGIN == screen ]] && echo hyprlock || echo "text on tty1")::login" \
-            "System       snapper · weekly snapshot · yay::system" \
+            "$(lbl_fw)::fw" \
+            "$(lbl_login)::login" \
+            "$(lbl_system)::system" \
             "Update       system + Waterbear (you have $WB_VERSION)::update" \
             "Quit::quit") || exit 0
         case "$c" in
@@ -440,6 +471,7 @@ case "${1:-menu}" in
     snapshot) state_load; snapshot_now "${2:-manual-$(date +%F)}" ;;
     apply)    state_load; apply_all; ok "Configs refreshed." ;;
     version|-v|--version) echo "Waterbear $WB_VERSION" ;;
-    help|-h|--help) sed -n '2,22p' "$WB_SELF" | sed 's/^# \{0,1\}//' ;;
+    shortcuts) state_load; show_shortcuts ;;
+    help|-h|--help) sed -n '2,23p' "$WB_SELF" | sed 's/^# \{0,1\}//' ;;
     *)        die "Unknown command: $1 (try: waterbear help)" ;;
 esac

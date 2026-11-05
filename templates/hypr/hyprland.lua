@@ -24,7 +24,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark")
     hl.exec_cmd("swaync")                                   -- notifications + panel (Super+Shift+N)
     hl.exec_cmd("~/.local/bin/waterbear-wallpaper")                -- background (solid / image / live)
-    hl.exec_cmd("[ -f ~/.config/waybar/config.jsonc ] && waybar")  -- status bar, if one was chosen (Super+W)
+    hl.exec_cmd("~/.local/bin/waterbear-bar")                      -- status bar, if one was chosen (Super+W)
     hl.exec_cmd("hypridle")                                 -- idle lock / screen off / suspend
     hl.exec_cmd("wl-paste --type text --watch cliphist store")
     hl.exec_cmd("wl-paste --type image --watch cliphist store")

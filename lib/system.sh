@@ -117,7 +117,7 @@ PROFILE
 # Firewall (ufw): block incoming by default, open only what you tick
 # ---------------------------------------------------------------------------
 FW_OPTIONS=(
- "SSH (port 22) — connect to this laptop remotely::ssh"
+ "SSH (port 22) — connect to this computer remotely::ssh"
  "Steam Remote Play / in-home streaming::steam"
  "Dev servers on your network (3000 · 5173 · 8000 · 8080)::dev"
  "KDE Connect / GSConnect (phone integration)::kdeconnect"

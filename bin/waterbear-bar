@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# waterbear-bar — (re)starts Waybar and keeps it alive. Runs at login; Waterbear restarts it after changes.
+# Waybar can crash when it starts very early in a session (audio, network or Hyprland's IPC still coming
+# up), which made the bar vanish after a reboot. This tries again a few times instead of giving up.
+# Waybar's output goes to $XDG_RUNTIME_DIR/waterbear-bar.log, in case it still won't stay up.
+RUN="${XDG_RUNTIME_DIR:-/tmp}"
+PIDFILE="$RUN/waterbear-bar.pid"
+LOG="$RUN/waterbear-bar.log"
+
+# Stop any earlier copy of this script first, then its bar
+if [[ -f "$PIDFILE" ]]; then
+    old=$(< "$PIDFILE")
+    [[ "$old" != "$$" ]] && kill "$old" 2>/dev/null
+fi
+pkill -x waybar 2>/dev/null && sleep 0.3
+
+[[ -f "$HOME/.config/waybar/config.jsonc" ]] || { rm -f "$PIDFILE"; exit 0; }   # no bar chosen
+echo $$ > "$PIDFILE"
+: > "$LOG"
+
+tries=0
+while (( tries < 10 )); do
+    started=$SECONDS
+    waybar >> "$LOG" 2>&1
+    rc=$?
+    case $rc in 0|130|143) break ;; esac              # closed on purpose (quit, Ctrl+C, pkill)
+    echo "waterbear-bar: waybar exited with code $rc, starting it again" >> "$LOG"
+    (( SECONDS - started > 60 )) && tries=0            # it ran fine for a while; this is a fresh crash
+    (( tries++ ))
+    sleep 2
+done
+[[ "$(cat "$PIDFILE" 2>/dev/null)" == "$$" ]] && rm -f "$PIDFILE"
