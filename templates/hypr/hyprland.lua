@@ -26,7 +26,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("wl-paste --type text --watch cliphist store")
     hl.exec_cmd("wl-paste --type image --watch cliphist store")
     hl.exec_cmd("[ -x ~/.local/bin/weekly-snapshot-login.sh ] && ~/.local/bin/weekly-snapshot-login.sh")  -- weekly snapshot (if enabled)
-    hl.exec_cmd([[kitty sh -c 'fastfetch; exec "$SHELL"']])  -- open a terminal with fastfetch on login
+    hl.exec_cmd("kitty")                                    -- open a terminal on login (shows fastfetch, like every new one)
 end)
 
 -------------------------------

@@ -99,6 +99,10 @@ write_bashrc_block() {
         if [[ "$PROMPT" != off ]]; then
             echo 'command -v starship > /dev/null && eval "$(starship init bash)"'
         fi
+        # fastfetch in every new kitty window (not in TTYs, ssh, editors' terminals or a bash started inside bash)
+        echo 'if [[ $- == *i* && -n "${KITTY_WINDOW_ID:-}" && -z "${WB_FETCHED:-}" ]] && command -v fastfetch > /dev/null; then'
+        echo '    export WB_FETCHED=1; fastfetch'
+        echo 'fi'
         echo "# <<< waterbear <<<"
     } >> "$tmp"
     mv "$tmp" "$rc"
