@@ -5,12 +5,9 @@
 ------------------
 ---- MONITORS ----
 ------------------
-hl.monitor({
-    output   = "",
-    mode     = "preferred",
-    position = "auto",
-    scale    = "auto",
-})
+-- Written by Waterbear from your choices in the menu (Monitors): left → right order and
+-- which workspaces go on which monitor. With nothing chosen, Hyprland places them itself.
+require("monitors")
 
 -------------------
 ---- AUTOSTART ----

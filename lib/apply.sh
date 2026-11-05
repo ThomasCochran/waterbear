@@ -189,6 +189,7 @@ apply_all() {
 
     # Hyprland
     render hypr/hyprland.lua "$H/hyprland.lua"
+    write_monitors_lua
     if [[ "$KEYBINDS" == waterbear ]]; then
         render hypr/binds-waterbear.lua "$H/binds.lua"
     else

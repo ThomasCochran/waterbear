@@ -23,7 +23,7 @@ die()  { printf '%s xx%s %s\n' "$c_red" "$c_off" "$1" >&2; exit 1; }
 # Saved settings (~/.config/waterbear/state.conf)
 # ---------------------------------------------------------------------------
 STATE_KEYS=(SCHEME ACCENT WALLPAPER LIVE_ON_BATTERY LOCK_BG BAR KEYBINDS PROMPT SAVER SAVER_ON_BATTERY IDLE_PRESET IDLE_SAVER IDLE_LOCK IDLE_OFF
-            IDLE_SUSPEND LOGIN SNAPPER SNAPPER_WEEKLY FIREWALL FW_PORTS YAY APPS)
+            IDLE_SUSPEND LOGIN SNAPPER SNAPPER_WEEKLY FIREWALL FW_PORTS YAY APPS MONITORS MON_WS)
 
 state_defaults() {
     SCHEME=abyss; ACCENT=""; WALLPAPER=solid; LIVE_ON_BATTERY=no; LOCK_BG=solid; BAR=dashboard; KEYBINDS=waterbear; PROMPT=hacker
@@ -31,6 +31,7 @@ state_defaults() {
     IDLE_PRESET=normal; IDLE_SAVER=4; IDLE_LOCK=5; IDLE_OFF=7; IDLE_SUSPEND=20
     LOGIN=text; SNAPPER=yes; SNAPPER_WEEKLY=yes
     FIREWALL=yes; FW_PORTS="ssh"; YAY=no; APPS="btop clock"
+    MONITORS=""; MON_WS=""   # empty = Hyprland places monitors and workspaces itself
 }
 
 state_load() {
@@ -68,7 +69,7 @@ scheme_accent_default() { ( ACCENT_DEFAULT=""; . "$WB_HOME/schemes/$1"; echo "$A
 # Loads the palette for $1 into P_BG P_FG P_A P_B P_DIM P_C0..P_C15
 scheme_load() {
     [[ -f "$WB_HOME/schemes/$1" ]] || die "Unknown scheme '$1'. Options: $(scheme_list | tr '\n' ' ')"
-    local PALETTE DESC ACCENTS="" ACCENT_DEFAULT="" p
+    local PALETTE DESC ACCENTS="" ACCENT_DEFAULT="" ACCENT_SLOTS="" p
     # shellcheck disable=SC1090
     . "$WB_HOME/schemes/$1"
     read -ra p <<< "$PALETTE"
@@ -80,9 +81,26 @@ scheme_load() {
         local want="${ACCENT:-$ACCENT_DEFAULT}" pair hex=""
         for pair in $ACCENTS; do [[ "${pair%%:*}" == "$want" ]] && hex="${pair#*:}"; done
         [[ -z "$hex" ]] && { want="$ACCENT_DEFAULT"; for pair in $ACCENTS; do [[ "${pair%%:*}" == "$want" ]] && hex="${pair#*:}"; done; }
-        [[ -n "$hex" ]] && { P_B="$hex"; P_RAIN="$hex"; }
+        if [[ -n "$hex" ]]; then
+            P_B="$hex"; P_RAIN="$hex"
+            # Terminal colors that follow the accent too (ACCENT_SLOTS="C1:0 C9:25" = slot:% lighter),
+            # so a one-accent scheme like Noir doesn't keep its default accent in the terminal
+            local slot; for slot in $ACCENT_SLOTS; do
+                printf -v "P_${slot%%:*}" '%s' "$(hex_lighten "$hex" "${slot#*:}")"
+            done
+        fi
         P_NAME="$1 ($want)"
     fi
+}
+
+# hex_lighten RRGGBB PCT — mix the color PCT% of the way toward white
+hex_lighten() {
+    local h="$1" pct="$2" out="" i c
+    for i in 0 2 4; do
+        c=$((16#${h:$i:2})); c=$(( c + (255 - c) * pct / 100 ))
+        out+=$(printf '%02x' "$c")
+    done
+    echo "$out"
 }
 
 # render SRC DEST [MODE] — fill @@...@@ placeholders with the loaded palette

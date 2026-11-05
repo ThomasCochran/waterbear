@@ -11,7 +11,7 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 1.0.3 |
+| **Version** | 1.0.4 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |
@@ -57,8 +57,9 @@ Nothing you pick is final: everything can be changed later in the Waterbear menu
 ## After installing
 
 > **Press `Super + Alt + Space` to open the Waterbear menu.** It's where you change your theme,
-> background, bar, prompt, apps, screensaver, firewall, login and keybind set, take or restore snapshots,
-> update, and see **Shortcuts**: a list of every keyboard shortcut for the keybind set you picked.
+> background, bar, prompt, apps, screensaver, firewall, login and keybind set, arrange your **monitors**
+> (swap left/right, pick which workspaces go on which), take or restore snapshots, update,
+> and see **Shortcuts**: a list of every keyboard shortcut for the keybind set you picked.
 > It works with either keybind set.
 
 | | |
@@ -75,15 +76,23 @@ waterbear                 # the menu
 waterbear theme matrix    # switch color scheme
 waterbear bar islands     # dashboard | islands | terminal | none
 waterbear apps            # install / remove optional apps
+waterbear monitors        # monitor order (left → right) and which workspaces go on which
 waterbear update          # snapshot → system update → newest Waterbear → refresh configs
 waterbear snapshot        # take a snapshot now
+waterbear apply           # rewrite all configs from your saved settings
+waterbear shortcuts       # list every keyboard shortcut
 waterbear version         # which version you have
 waterbear help
 ```
 
+If an update fails, it says so at the end in a red **UPDATE FAILED** box (and a desktop notification)
+with what went wrong and how to fix it. The last update's result is saved in `~/.cache/waterbear/last-update.log`.
+If files in `~/.local/share/waterbear` were changed by hand, the update offers to set them aside
+(`git stash`) first, since they'd block it.
+
 ## What's included
 
-- **Hyprland** (0.55+ Lua config) with Waterbear's shortcuts or Hyprland's stock ones
+- **Hyprland** (0.57+ Lua config) with Waterbear's shortcuts or Hyprland's stock ones
 - **Color schemes:** Abyss, Noir, Matrix, Nebula, Hearth, applied to Hyprland, kitty, rofi, the bar,
   the lock screen, the Starship prompt, btop and Neovim at once
 - **Backgrounds:** solid color, Grid horizon, Orbit, the waterbear logo (all drawn in your theme's colors),
@@ -102,7 +111,8 @@ waterbear help
 Waterbear regenerates its config files when you switch themes or update. Your own settings go in
 files it never touches:
 
-- `~/.config/hypr/user.lua`: extra keybinds, monitor setup, any Hyprland setting (loads last, so it wins)
+- `~/.config/hypr/user.lua`: extra keybinds, any Hyprland setting (loads last, so it wins). For monitor
+  order and workspaces use the menu's **Monitors** instead; anything you put here overrides it
 - `~/.config/kitty/user.conf`: terminal settings
 - `~/.bashrc`: anything outside the `# >>> waterbear >>>` block
 
@@ -119,7 +129,7 @@ background color, white becomes its accent, grays land in between. Big PNGs (384
 ```
 waterbear            the command (menu, setup, theme, update…)
 install.sh           installs from a clone
-lib/                 core · apply (writes configs) · apps · system (snapper, firewall, login, update)
+lib/                 core · apply (writes configs) · apps · system (snapper, firewall, login, update) · monitors
 schemes/             one file per color scheme
 templates/           config templates (colors filled in from the scheme), incl. wallpaper drawings
 wallpapers/          the bundled waterbear artwork (black and white, recolored per theme)
@@ -132,3 +142,7 @@ tools/build-installer.sh   bundles everything into dist/Installer.sh
 
 Copy a file in `schemes/`, change `DESC` and the 21 colors in `PALETTE`
 (background, text, accent, accent 2, dim, then the 16 terminal colors), then run `waterbear theme NAME`.
+
+To let people pick the accent (like Noir), also set `ACCENTS="name:hex ..."` and `ACCENT_DEFAULT=name`.
+The picked color replaces accent 2. `ACCENT_SLOTS="C1:0 C9:25"` makes terminal colors follow it too
+(slot:percent lighter), so the scheme doesn't keep its default accent anywhere.

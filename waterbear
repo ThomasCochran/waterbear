@@ -6,6 +6,7 @@
 #   waterbear theme [NAME] [ACCENT]  switch color scheme (no name = pick from a list)
 #   waterbear bar [NAME]      dashboard | islands | terminal | none
 #   waterbear apps            install / remove optional apps
+#   waterbear monitors        monitor order (left → right) and which workspaces go on which
 #   waterbear update          snapshot, update the system and Waterbear, refresh configs
 #   waterbear snapshot [DESC] take a snapshot now
 #   waterbear apply           rewrite all configs from your saved settings
@@ -28,6 +29,7 @@ export WATERBEAR_HOME="${WATERBEAR_HOME:-$(dirname "$WB_SELF")}"
 . "$WB_HOME/lib/apply.sh"
 . "$WB_HOME/lib/apps.sh"
 . "$WB_HOME/lib/system.sh"
+. "$WB_HOME/lib/monitors.sh"
 
 [[ $EUID -eq 0 ]] && die "Run waterbear as your normal user (it uses sudo when needed)."
 command -v gum > /dev/null || INTERACTIVE=false
@@ -399,6 +401,7 @@ cmd_menu() {
             "$(lbl_fw)::fw" \
             "$(lbl_login)::login" \
             "$(lbl_system)::system" \
+            "$(lbl_monitors)::monitors" \
             "Update       system + Waterbear (you have $WB_VERSION)::update" \
             "Quit::quit") || exit 0
         case "$c" in
@@ -424,6 +427,7 @@ cmd_menu() {
                         "Text login on tty1::text" "hyprlock as the login screen::screen") || continue
                     LOGIN="$l"; need_sudo; login_apply; state_save; ui_pause ;;
             system) cmd_system ;;
+            monitors) cmd_monitors ;;
             update) waterbear_update || true; ui_pause
                     exec "$WB_HOME/waterbear" menu ;;   # reopen with the (possibly new) version
             quit)   exit 0 ;;
@@ -469,10 +473,11 @@ case "${1:-menu}" in
     bar)      state_load; BAR="${2:-$(pick_bar)}"; state_save; apply_all; ok "Bar: $BAR" ;;
     apps)     state_load; sel=$(pick_apps) && { need_sudo; apps_sync "$sel"; state_save; apply_all; } ;;
     update)   state_load; waterbear_update ;;
+    monitors) cmd_monitors ;;
     snapshot) state_load; snapshot_now "${2:-manual-$(date +%F)}" ;;
     apply)    state_load; apply_all; ok "Configs refreshed." ;;
     version|-v|--version) echo "Waterbear $WB_VERSION" ;;
     shortcuts) state_load; show_shortcuts ;;
-    help|-h|--help) sed -n '2,23p' "$WB_SELF" | sed 's/^# \{0,1\}//' ;;
+    help|-h|--help) awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$WB_SELF" ;;
     *)        die "Unknown command: $1 (try: waterbear help)" ;;
 esac
