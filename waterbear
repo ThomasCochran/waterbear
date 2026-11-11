@@ -11,7 +11,7 @@
 #   waterbear apps            install / remove apps, search any package, web apps
 #   waterbear monitors        monitor order (left → right) and which workspaces go on which
 #   waterbear update          snapshot, update the system and Waterbear, refresh configs
-#   waterbear autoupdate [off|ask|auto]  no argument = check now (runs at every login)
+#   waterbear autoupdate [off|ask|auto]  no argument = check now (also runs at login, then every 3 hours)
 #   waterbear snapshot [DESC] take a snapshot now
 #   waterbear apply           rewrite all configs from your saved settings
 #   waterbear shortcuts       list every keyboard shortcut (also: Super+H, or Super+K with Omarchy keys)
@@ -590,7 +590,7 @@ lbl_shell()  { echo "Shell        $USER_SHELL"; }
 lbl_idle()   { echo "Screensaver  $SAVER · lock after ${IDLE_LOCK} min"; }
 lbl_fw()     { echo "Firewall     $([[ $FIREWALL == yes ]] && echo "on · open: ${FW_PORTS:-nothing}" || echo off)"; }
 lbl_login()  { echo "Login        $([[ $LOGIN == screen ]] && echo hyprlock || echo "text on tty1")"; }
-lbl_auto()   { echo "Auto-update  $AUTO_UPDATE · checks GitHub at login"; }
+lbl_auto()   { echo "Auto-update  $AUTO_UPDATE · checks GitHub at login and every 3 hours"; }
 lbl_system() { echo "Snapper/yay  snapper: $SNAPPER · weekly snapshot: $SNAPPER_WEEKLY · yay: $YAY"; }
 
 menu_desktop() {
@@ -736,13 +736,20 @@ menu_update() {
         local c
         c=$(ui_pick "Update" "$last" \
             "Update now   snapshot · system packages · Waterbear (you have $WB_VERSION)::update" \
-            "$(lbl_auto)::auto") || return 0
+            "$(lbl_auto)::auto" \
+            "Check now    and see the last checks (~/.cache/waterbear/autoupdate.log)::check") || return 0
         last="$c"
         case "$c" in
             update) waterbear_update || true; ui_pause
                     exec "$WB_HOME/waterbear" menu ;;   # reopen with the (possibly new) version
             auto)   local au; au=$(pick_autoupdate) || continue; AUTO_UPDATE="$au"; state_save
-                    ok "Auto-update: $AUTO_UPDATE (next check: your next login)"; ui_pause ;;
+                    ok "Auto-update: $AUTO_UPDATE (checks at login and every 3 hours)"; ui_pause ;;
+            check)  ui_title "Update check"
+                    local rc=0; AU_VERBOSE=true; autoupdate_once 1 || rc=$?
+                    echo; info "Last checks:"; tail -n 8 "$WB_AUTO_LOG" 2> /dev/null | sed 's/^/      /'
+                    ui_pause
+                    (( rc == 3 )) && exec "$WB_HOME/waterbear" menu   # reopen with the new version
+                    ;;
         esac
     done
 }
@@ -812,10 +819,10 @@ case "${1:-menu}" in
               state_save; apply_all; ok "Shell: $USER_SHELL" ;;
     apps)     state_load; $INTERACTIVE || die "This needs gum and a terminal."; scheme_load "$SCHEME"; ui_colors; menu_install ;;
     update)   state_load; waterbear_update ;;
-    autoupdate) if [[ -n "${2:-}" ]]; then
-                    state_load; [[ "$2" =~ ^(off|ask|auto)$ ]] || die "Unknown auto-update '$2' (off, ask or auto)."
-                    AUTO_UPDATE="$2"; state_save; ok "Auto-update: $AUTO_UPDATE"
-                else cmd_autoupdate; fi ;;
+    autoupdate) case "${2:-}" in
+                    off|ask|auto) state_load; AUTO_UPDATE="$2"; state_save; ok "Auto-update: $AUTO_UPDATE" ;;
+                    *)            cmd_autoupdate "${2:-}" ;;
+                esac ;;
     monitors) cmd_monitors ;;
     snapshot) state_load; snapshot_now "${2:-manual-$(date +%F)}" ;;
     apply)    state_load; apply_all; if [[ "$DESKTOP" == yes ]]; then ok "Configs refreshed."; fi ;;
