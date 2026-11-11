@@ -25,14 +25,15 @@ die()  { printf '%s xx%s %s\n' "$c_red" "$c_off" "$1" >&2; exit 1; }
 # ---------------------------------------------------------------------------
 STATE_KEYS=(DESKTOP MENU_KEY DARK_MODE SCHEME ACCENT WALLPAPER WALL_IMAGE LIVE_ON_BATTERY LOCK_BG BAR KEYBINDS PROMPT USER_SHELL SAVER SAVER_ON_BATTERY
             IDLE_PRESET IDLE_SAVER IDLE_LOCK IDLE_OFF IDLE_SUSPEND LOGIN SNAPPER SNAPPER_WEEKLY FIREWALL FW_PORTS YAY APPS MONITORS MON_WS AUTO_UPDATE SEARCH
-            SEE_FOCUSED SEE_UNFOCUSED)
+            SEE_FOCUSED SEE_UNFOCUSED SEE_TERM_FOCUSED SEE_TERM_UNFOCUSED)
 
 state_defaults() {
     DESKTOP=""      # yes once the Waterbear desktop is installed (Desktop → Install); until then nothing in ~/.config is touched
     MENU_KEY=yes    # Super+Alt+Space opens this menu
     DARK_MODE=yes   # dark GTK / Qt / Firefox (off = light)
     WALL_IMAGE=""   # your own picture, for WALLPAPER=picture
-    SEE_FOCUSED=0; SEE_UNFOCUSED=8   # window transparency in % (0 = solid, 100 = fully see-through; terminals keep their text solid)
+    SEE_FOCUSED=0; SEE_UNFOCUSED=8             # app window transparency in % (0 = solid, 100 = fully see-through)
+    SEE_TERM_FOCUSED=8; SEE_TERM_UNFOCUSED=15  # terminals: only the background fades, text stays solid
     SEARCH=google   # what Super+S searches: google | duckduckgo (DuckDuckGo in Install → Browsers)
     SCHEME=abyss; ACCENT=""; WALLPAPER=solid; LIVE_ON_BATTERY=no; LOCK_BG=solid; BAR=dashboard; KEYBINDS=waterbear; PROMPT=hacker; USER_SHELL=bash
     SAVER=cmatrix; SAVER_ON_BATTERY=no
@@ -136,18 +137,19 @@ dark_vars() {
     fi
 }
 
-# Window transparency (SEE_FOCUSED / SEE_UNFOCUSED, in %) → the opacity values the templates use:
-#   T_OPA / T_OPI    Hyprland's opacity for the focused / other windows (fades the whole window)
-#   T_OPK            Hyprland's opacity for unfocused terminals. Terminals stay solid and kitty makes only
-#                    its background see-through (T_OPA), so text stays sharp, even at 100% ("floating text").
+# Window transparency (in %: 0 = solid, 100 = fully see-through) → the opacity values the templates use:
+#   T_OPA / T_OPI    apps you're on / not on: Hyprland's opacity (fades the whole window, text included)
+#   T_OPT            terminal you're on: kitty's background opacity (text stays solid, 100% = floating text)
+#   T_OPK            terminal you're not on: Hyprland's extra opacity on top, so its background ends up at
+#                    the "not on" value. Text only fades if that's more see-through than the one you're on.
+pct_ok() { [[ "$1" =~ ^[0-9]+$ ]] && (( $1 <= 100 )); }
 opacity_vars() {
-    local f="${SEE_FOCUSED:-0}" u="${SEE_UNFOCUSED:-8}"
-    [[ "$f" =~ ^[0-9]+$ ]] && (( f <= 100 )) || f=0
-    [[ "$u" =~ ^[0-9]+$ ]] && (( u <= 100 )) || u=8
-    read -r T_OPA T_OPI T_OPK <<< "$(awk -v f="$f" -v u="$u" 'BEGIN {
-        a = 1 - f / 100; i = 1 - u / 100
-        r = (a > 0) ? i / a : 1; if (r > 1) r = 1     # unfocused terminal: background a × r = i
-        printf "%.2f %.2f %.2f", a, i, r }')"
+    local f="${SEE_FOCUSED:-0}" u="${SEE_UNFOCUSED:-8}" tf="${SEE_TERM_FOCUSED:-8}" tu="${SEE_TERM_UNFOCUSED:-15}"
+    pct_ok "$f" || f=0; pct_ok "$u" || u=8; pct_ok "$tf" || tf=8; pct_ok "$tu" || tu=15
+    read -r T_OPA T_OPI T_OPT T_OPK <<< "$(awk -v f="$f" -v u="$u" -v tf="$tf" -v tu="$tu" 'BEGIN {
+        a = 1 - f / 100; i = 1 - u / 100; ta = 1 - tf / 100; ti = 1 - tu / 100
+        r = (ta > 0) ? ti / ta : 1; if (r > 1) r = 1     # unfocused terminal: background ta × r = ti
+        printf "%.2f %.2f %.2f %.2f", a, i, ta, r }')"
 }
 
 # hex_darken RRGGBB PCT — mix the color PCT% of the way toward black
@@ -177,7 +179,7 @@ render() {
     local args=(-e "s/@@BG@@/$P_BG/g" -e "s/@@FG@@/$P_FG/g" -e "s/@@A@@/$P_A/g" -e "s/@@B@@/$P_B/g"
                 -e "s/@@DIM@@/$P_DIM/g" -e "s/@@RAIN@@/$P_RAIN/g" -e "s/@@SCHEME_NAME@@/$P_NAME/g"
                 -e "s/@@GTK_THEME@@/$T_GTK/g" -e "s/@@PREFER_DARK@@/$T_PREFER/g" -e "s/@@COLOR_SCHEME@@/$T_CS/g"
-                -e "s/@@OP_ACTIVE@@/${T_OPA:-1.00}/g" -e "s/@@OP_INACTIVE@@/${T_OPI:-0.92}/g" -e "s/@@OP_TERM_INACTIVE@@/${T_OPK:-0.92}/g"
+                -e "s/@@OP_ACTIVE@@/${T_OPA:-1.00}/g" -e "s/@@OP_INACTIVE@@/${T_OPI:-0.92}/g" -e "s/@@OP_TERM_INACTIVE@@/${T_OPK:-0.92}/g" -e "s/@@OP_TERM@@/${T_OPT:-0.92}/g"
                 -e "s/@@ICON_THEME@@/${T_ICONS:-Adwaita}/g" -e "s/@@A_DARK@@/$(hex_darken "$P_A" 25)/g" -e "s/@@B_DARK@@/$(hex_darken "$P_B" 25)/g")
     local i v; for i in $(seq 15 -1 0); do v="P_C$i"; args+=(-e "s/@@C$i@@/${!v}/g"); done
     mkdir -p "$(dirname "$dest")"

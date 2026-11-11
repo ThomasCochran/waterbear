@@ -12,7 +12,7 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 1.2.3 |
+| **Version** | 1.2.4 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |
@@ -83,9 +83,9 @@ you say yes.
 - **Your own colors:** type a background, text color and two accents; Waterbear works out the rest
 - **old_theme:** the setup you had before Waterbear, if you chose to keep it
 - **Manage your themes:** rename, change colors, delete
-- **Transparency:** how see-through the window you're on and the other windows are, in % (0 = solid,
-  100 = fully see-through). Terminals keep their text solid and only their background fades, so 100 gives
-  floating text; other apps fade as a whole, text included
+- **Transparency:** four numbers in % (0 = solid, 100 = fully see-through): apps you're on / not on, and
+  terminals you're on / not on. Apps fade as a whole, text included; terminals only fade their background,
+  so their text stays solid and 100 gives floating text
 
 Theme and background are separate: changing one never changes the other.
 
@@ -110,7 +110,7 @@ waterbear                 # the menu
 waterbear theme matrix    # switch color scheme (no name = the theme menu)
 waterbear background      # pick your background (a generated one or your own picture)
 waterbear dark off        # light mode (on / off; no argument switches)
-waterbear transparency 10 30   # window you're on 10% see-through, other windows 30% (0 = solid, 100 = clear)
+waterbear transparency 0 10 40 70   # apps on / not on, terminals on / not on (in %: 0 = solid, 100 = clear)
 waterbear bar islands     # dashboard | islands | terminal | none
 waterbear shell fish      # bash | fish: the shell your terminals open
 waterbear apps            # install apps, web apps, search any package

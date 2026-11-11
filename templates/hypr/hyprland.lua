@@ -193,8 +193,8 @@ hl.window_rule({
     center = true,
 })
 
--- Terminals: Hyprland keeps them solid and kitty makes only its background see-through (same
--- transparency as other windows), so their text stays sharp, even at 100%
+-- Terminals have their own transparency: Hyprland keeps them solid and kitty makes only its
+-- background see-through, so their text stays sharp, even at 100%
 hl.window_rule({
     name    = "terminal-transparency",
     match   = { class = "^(kitty|dropterm|waterbear-menu|keyhelp)$" },

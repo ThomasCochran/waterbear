@@ -5,7 +5,7 @@
 #   waterbear setup           install the Waterbear desktop with your saved settings (same as menu → Desktop → Install)
 #   waterbear theme [NAME] [ACCENT]  switch color scheme (no name = the theme menu: presets, from a picture, your own colors)
 #   waterbear background      pick your background (a generated one, or your own picture)
-#   waterbear transparency [FOCUSED OTHERS]  window transparency in % (0 = solid, 100 = see-through)
+#   waterbear transparency [APP_ON APP_OFF [TERM_ON TERM_OFF]]  window transparency in % (0 = solid, 100 = see-through)
 #   waterbear dark [on|off]   dark mode for GTK / Qt apps and Firefox (no argument = switch)
 #   waterbear bar [NAME]      dashboard | islands | terminal | none
 #   waterbear shell [NAME]    bash | fish: the shell your terminals open
@@ -124,7 +124,7 @@ menu_theme() {
                "Your own colors  type a background, text and two accents::@colors")
         [[ "$SCHEME" == custom ]] && opts+=("Save the theme you're trying::@save")
         opts+=("-- Windows"
-               "Transparency     window you're on $SEE_FOCUSED% · other windows $SEE_UNFOCUSED%::@transparency")
+               "Transparency     $(lbl_transparency)::@transparency")
         [[ -n "$mine" ]] && opts+=("Manage your themes  rename · change colors · delete::@manage")
         local c
         c=$(ui_pick "Theme  (now: $SCHEME${ACCENT:+ · $ACCENT})" "$last" "${opts[@]}") || return 0
@@ -236,21 +236,25 @@ ask_percent() {  # ask_percent QUESTION DEFAULT -> prints 0-100
         warn "'$v' isn't a number from 0 to 100."
     done
 }
-st_see_focused()   { local v; v=$(ask_percent "Transparency of the window you're on (focused)" "$SEE_FOCUSED") || return 1; SEE_FOCUSED="$v"; }
-st_see_unfocused() { local v; v=$(ask_percent "Transparency of the other windows" "$SEE_UNFOCUSED") || return 1; SEE_UNFOCUSED="$v"; }
+st_see_focused()       { local v; v=$(ask_percent "1/4  Apps: the window you're on" "$SEE_FOCUSED") || return 1; SEE_FOCUSED="$v"; }
+st_see_unfocused()     { local v; v=$(ask_percent "2/4  Apps: windows you're not on" "$SEE_UNFOCUSED") || return 1; SEE_UNFOCUSED="$v"; }
+st_see_term_focused()  { local v; v=$(ask_percent "3/4  Terminals: the one you're on (text stays solid)" "$SEE_TERM_FOCUSED") || return 1; SEE_TERM_FOCUSED="$v"; }
+st_see_term_unfocused(){ local v; v=$(ask_percent "4/4  Terminals: ones you're not on (text stays solid)" "$SEE_TERM_UNFOCUSED") || return 1; SEE_TERM_UNFOCUSED="$v"; }
+
+lbl_transparency() { echo "apps $SEE_FOCUSED% / $SEE_UNFOCUSED% · terminals $SEE_TERM_FOCUSED% / $SEE_TERM_UNFOCUSED%  (on / not on)"; }
 
 pick_transparency() {
     ui_title "Transparency"
     info "How see-through windows are, in %: 0 = solid, 100 = fully see-through."
-    info "Terminals keep their text solid and only their background fades, so 100 = floating text."
-    info "Other apps fade as a whole, text included, so very high numbers make them hard to read."; echo
-    ui_steps st_see_focused st_see_unfocused
+    info "Apps fade as a whole, text included, so very high numbers make them hard to read."
+    info "Terminals only fade their background: their text stays solid, so 100 = floating text."; echo
+    ui_steps st_see_focused st_see_unfocused st_see_term_focused st_see_term_unfocused
 }
 
 transparency_set() {
     state_save
     if [[ "$DESKTOP" == yes ]]; then apply_all; else desktop_needed || true; fi
-    ok "Transparency: window you're on $SEE_FOCUSED% · other windows $SEE_UNFOCUSED%"
+    ok "Transparency: $(lbl_transparency)"
 }
 
 pick_bar() {
@@ -857,12 +861,13 @@ case "${1:-menu}" in
     background|wallpaper) state_load; scheme_load "$SCHEME"; ui_colors; ui_title "Background"; cmd_background ;;
     transparency) state_load
               if [[ -n "${2:-}" ]]; then
-                  for v in "$2" "${3:-$SEE_UNFOCUSED}"; do
-                      [[ "$v" =~ ^[0-9]+$ ]] && (( v <= 100 )) || die "Use: waterbear transparency FOCUSED OTHERS (each 0-100, 0 = solid)"
-                  done
-                  SEE_FOCUSED="$2"; SEE_UNFOCUSED="${3:-$SEE_UNFOCUSED}"
+                  shift
+                  [[ $# -eq 2 || $# -eq 4 ]] || die "Use: waterbear transparency APP_ON APP_OFF [TERM_ON TERM_OFF] (each 0-100, 0 = solid)"
+                  for v in "$@"; do pct_ok "$v" || die "'$v' isn't 0-100. Use: waterbear transparency APP_ON APP_OFF [TERM_ON TERM_OFF]"; done
+                  SEE_FOCUSED="$1"; SEE_UNFOCUSED="$2"
+                  [[ $# -eq 4 ]] && { SEE_TERM_FOCUSED="$3"; SEE_TERM_UNFOCUSED="$4"; }
               else
-                  $INTERACTIVE || die "Use: waterbear transparency FOCUSED OTHERS (each 0-100, 0 = solid)"
+                  $INTERACTIVE || die "Use: waterbear transparency APP_ON APP_OFF [TERM_ON TERM_OFF] (each 0-100, 0 = solid)"
                   scheme_load "$SCHEME"; ui_colors; pick_transparency || exit 0
               fi
               scheme_load "$SCHEME"; transparency_set ;;
