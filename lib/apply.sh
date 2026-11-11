@@ -384,13 +384,16 @@ apply_all() {
     local H="$HOME/.config/hypr"
 
     # Hyprland
+    ap_step "Folder icons"
     write_icon_theme   # first: sets T_ICONS, used by the templates below
+    ap_step "Hyprland"
     render hypr/hyprland.lua "$H/hyprland.lua"
     if [[ "$MENU_KEY" == yes ]]; then sed -i 's/   -- @@MENU_KEY@@$//' "$H/hyprland.lua"
     else sed -i 's/^\(hl.bind("SUPER + ALT + space".*\)   -- @@MENU_KEY@@$/-- (turned off in the menu) \1/' "$H/hyprland.lua"; fi
     write_monitors_lua
     render "hypr/binds-$KEYBINDS.lua" "$H/binds.lua"
     render hypr/hyprlock.conf "$H/hyprlock.conf"
+    ap_step "Background ($WALLPAPER)"
     wallpaper_generate
     write_wallpaper_configs
     render "hypr/KEYBINDS-$KEYBINDS.md" "$H/KEYBINDS.md"   # cheat sheet for the chosen keybind set
@@ -404,6 +407,7 @@ apply_all() {
 -- hl.monitor({ output = "eDP-1", mode = "1920x1080@60", position = "0x0", scale = 1 })
 EOF
 
+    ap_step "Terminal, launcher, GTK and Qt apps, notifications"
     # Terminal, launcher, GTK, portal
     render kitty/kitty.conf "$HOME/.config/kitty/kitty.conf"
     # Shell: kitty runs fish, but your login shell stays bash (Hyprland starts from ~/.bash_profile on tty1)
@@ -418,6 +422,7 @@ EOF
     render swaync/style.css "$HOME/.config/swaync/style.css"
     render portal/hyprland-portals.conf "$HOME/.config/xdg-desktop-portal/hyprland-portals.conf"
 
+    ap_step "Status bar ($BAR)"
     # Status bar
     rm -rf "$HOME/.config/waybar"
     if [[ "$BAR" != none ]]; then
@@ -425,6 +430,7 @@ EOF
         render "waybar/$BAR/style.css" "$HOME/.config/waybar/style.css"
     fi
 
+    ap_step "Prompt and shell"
     # Prompt
     if [[ "$PROMPT" != off ]]; then
         render "starship/$PROMPT.toml" "$HOME/.config/starship.toml"
@@ -432,6 +438,7 @@ EOF
     write_bashrc_block
     write_fish_config
 
+    ap_step "App themes (btop, Neovim)"
     # btop theme
     if has_app btop; then
         render btop/waterbear.theme "$HOME/.config/btop/themes/waterbear.theme"
@@ -456,18 +463,30 @@ EOF
 # Make running programs pick up the new files (only when inside Hyprland)
 reload_desktop() {
     [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || return 0
-    hyprctl reload > /dev/null 2>&1 || true
-    (setsid "$WB_BIN/waterbear-bar" > /dev/null 2>&1 &)   # restarts the bar, or just stops it if there's none
-    pkill -x hypridle 2>/dev/null; (setsid hypridle > /dev/null 2>&1 &)
-    "$WB_BIN/waterbear-wallpaper" > /dev/null 2>&1 || true
-    pkill -USR1 -x kitty 2>/dev/null || true   # kitty reloads its config on SIGUSR1
-    swaync-client -rs > /dev/null 2>&1 || true   # notification colors
+    ap_step "Reloading the desktop"
+    # Each one gets a time limit and no keyboard: a program that hangs can't stop the update
+    rd 10 hyprctl reload
+    (setsid "$WB_BIN/waterbear-bar" < /dev/null > /dev/null 2>&1 &)   # restarts the bar, or just stops it if there's none
+    pkill -x hypridle 2> /dev/null || true; (setsid hypridle < /dev/null > /dev/null 2>&1 &)
+    rd 20 "$WB_BIN/waterbear-wallpaper"
+    pkill -USR1 -x kitty 2> /dev/null || true   # kitty reloads its config on SIGUSR1
+    if pgrep -x swaync > /dev/null; then rd 5 swaync-client -sw -rs; fi   # notification colors (-sw: never wait for swaync)
     if command -v gsettings > /dev/null; then
-        gsettings set org.gnome.desktop.interface color-scheme "$T_CS" 2> /dev/null || true
-        gsettings set org.gnome.desktop.interface gtk-theme "$T_GTK" 2> /dev/null || true
-        gsettings set org.gnome.desktop.interface icon-theme "${T_ICONS:-Adwaita}" 2> /dev/null || true
+        rd 5 gsettings set org.gnome.desktop.interface color-scheme "$T_CS"
+        rd 5 gsettings set org.gnome.desktop.interface gtk-theme "$T_GTK"
+        rd 5 gsettings set org.gnome.desktop.interface icon-theme "${T_ICONS:-Adwaita}"
     fi
     # Thunar keeps its old icons and colors until it restarts
-    if pgrep -x thunar > /dev/null; then thunar -q 2> /dev/null || true; fi
+    if pgrep -x thunar > /dev/null; then rd 5 thunar -q; fi
     return 0
 }
+
+rd() {  # rd SECONDS COMMAND... — run a reload command with a time limit; never fails
+    local t="$1"; shift
+    ap_step "  ${1##*/} ${2:-}"
+    command -v "$1" > /dev/null || return 0
+    timeout -k 2 "$t" "$@" < /dev/null > /dev/null 2>&1 || { local rc=$?; (( rc == 124 || rc == 137 )) && ap_step "    (took longer than ${t}s, skipped)"; }
+    return 0
+}
+
+ap_step() { [[ "${APPLY_VERBOSE:-false}" == true ]] && info "$1"; return 0; }   # progress, when run in a terminal

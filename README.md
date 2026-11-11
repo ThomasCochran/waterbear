@@ -12,7 +12,7 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 1.2.1 |
+| **Version** | 1.2.2 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |

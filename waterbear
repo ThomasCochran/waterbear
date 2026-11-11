@@ -437,6 +437,23 @@ BASE_PKGS=(
     ttf-jetbrains-mono-nerd noto-fonts noto-fonts-emoji
 )
 
+# Packages a newer Waterbear needs that an older install doesn't have yet (e.g. papirus-icon-theme, qt6ct).
+# Installed when sudo is already unlocked (during `waterbear update`), otherwise you're told what's missing.
+desktop_pkgs_fix() {
+    [[ "$DESKTOP" == yes ]] || return 0
+    local missing; missing=$(pacman -T "${BASE_PKGS[@]}" 2> /dev/null | tr '\n' ' ' || true)
+    [[ -n "${missing// /}" ]] || return 0
+    if sudo -n true 2> /dev/null; then
+        info "Installing what this version of Waterbear uses: $missing"
+        # shellcheck disable=SC2086
+        pac $missing || warn "Couldn't install: $missing (try: sudo pacman -S $missing)"
+    else
+        warn "This version of Waterbear also uses: $missing"
+        info "Install them with: sudo pacman -S $missing   (or run: waterbear update)"
+    fi
+    return 0
+}
+
 setup_summary() {
     local fw="off"; [[ "$FIREWALL" == yes ]] && fw="on (open: ${FW_PORTS:-nothing})"
     printf '%s\n' \
@@ -825,7 +842,10 @@ case "${1:-menu}" in
                 esac ;;
     monitors) cmd_monitors ;;
     snapshot) state_load; snapshot_now "${2:-manual-$(date +%F)}" ;;
-    apply)    state_load; apply_all; if [[ "$DESKTOP" == yes ]]; then ok "Configs refreshed."; fi ;;
+    apply)    state_load
+              [[ -t 1 ]] && APPLY_VERBOSE=true   # in a terminal (e.g. during an update): show each step
+              desktop_pkgs_fix
+              apply_all; if [[ "$DESKTOP" == yes ]]; then ok "Configs refreshed."; fi ;;
     shortcut) cmd_shortcut "${2:-}" ;;
     webapp-open) [[ -n "${2:-}" ]] || die "Use: waterbear webapp-open URL"; webapp_open "$2" ;;
     version|-v|--version) echo "Waterbear $WB_VERSION" ;;
