@@ -18,7 +18,7 @@ hl.bind(key("B"),              hl.dsp.exec_cmd(browser))
 hl.bind(key("E"),              hl.dsp.exec_cmd(files))
 hl.bind(key("D"),              hl.dsp.exec_cmd("pkill -x rofi || rofi -show drun"))
 hl.bind(key("ALT + C"),        hl.dsp.exec_cmd("pkill -x rofi || rofi -show calc -modi calc -no-show-match -no-sort"))
-hl.bind(key("S"),              hl.dsp.exec_cmd(bin .. "rofi-websearch.sh"))          -- Google search
+hl.bind(key("S"),              hl.dsp.exec_cmd(bin .. "rofi-websearch.sh"))          -- web search (Google / DuckDuckGo)
 hl.bind(key("ALT + E"),        hl.dsp.exec_cmd("pkill -x rofi || rofi -modi emoji -show emoji"))
 hl.bind(key("ALT + V"),        hl.dsp.exec_cmd(bin .. "clipboard.sh"))               -- clipboard history
 hl.bind(key("H"),              hl.dsp.exec_cmd("kitty --class keyhelp -e waterbear shortcuts"))

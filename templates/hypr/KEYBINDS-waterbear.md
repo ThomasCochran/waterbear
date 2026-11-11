@@ -9,7 +9,7 @@ KEYBINDS  ·  press q to close
 | Super + E | File manager (Thunar) |
 | Super + D | App launcher (Rofi) |
 | Super + Alt + C | Calculator (qalculate in Rofi) |
-| Super + S | Web search (Google, in Rofi) |
+| Super + S | Web search (Google, or DuckDuckGo once added in Install → Browsers) |
 | Super + Alt + E | Emoji picker |
 | Super + Alt + V | Clipboard history |
 | Super + H | Keybind cheat sheet |

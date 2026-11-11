@@ -12,7 +12,7 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 1.2.2 |
+| **Version** | 1.2.3 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |
@@ -65,7 +65,7 @@ In checklists, **Space**, **x** or **Tab** ticks a box and **→** / Enter is do
 |---|---|
 | **Desktop** | install the Waterbear desktop · re-apply configs · login style |
 | **Look & feel** | theme · dark mode · background · bar · prompt · shell |
-| **Install** | apps by category (Browsers, Editors, Dev tools, Terminal, Chat, Media, Office, Sharing, Gaming, Extras) · web apps · search any package (official repos, or the AUR) · remove packages |
+| **Install** | apps by category (Browsers, Editors, Dev tools, Terminal, Media & creative, Office, Sharing, Gaming, Extras) · web apps · search any package (official repos, or the AUR) · remove packages |
 | **Keyboard** | keybind set (Waterbear, **Omarchy** or Hyprland stock) · every shortcut · the menu shortcut on/off |
 | **System** | snapshots · firewall · screensaver & lock · monitors · Snapper / yay |
 | **Update** | update now · auto-update |
@@ -83,6 +83,9 @@ you say yes.
 - **Your own colors:** type a background, text color and two accents; Waterbear works out the rest
 - **old_theme:** the setup you had before Waterbear, if you chose to keep it
 - **Manage your themes:** rename, change colors, delete
+- **Transparency:** how see-through the window you're on and the other windows are, in % (0 = solid,
+  100 = fully see-through). Terminals keep their text solid and only their background fades, so 100 gives
+  floating text; other apps fade as a whole, text included
 
 Theme and background are separate: changing one never changes the other.
 
@@ -107,6 +110,7 @@ waterbear                 # the menu
 waterbear theme matrix    # switch color scheme (no name = the theme menu)
 waterbear background      # pick your background (a generated one or your own picture)
 waterbear dark off        # light mode (on / off; no argument switches)
+waterbear transparency 10 30   # window you're on 10% see-through, other windows 30% (0 = solid, 100 = clear)
 waterbear bar islands     # dashboard | islands | terminal | none
 waterbear shell fish      # bash | fish: the shell your terminals open
 waterbear apps            # install apps, web apps, search any package
@@ -145,9 +149,9 @@ If files in `~/.local/share/waterbear` were changed by hand, the update offers t
 - **Lock screen** (hyprlock) and an optional **screensaver** (cmatrix or a big terminal clock)
 - **Snapper** snapshots in the GRUB boot menu, plus an optional weekly automatic snapshot
 - **Firewall** (ufw): incoming blocked except what you allow (SSH, Steam Remote Play, dev servers…)
-- **Apps by category:** Firefox, Chromium, Brave, Zen · Neovim + LazyVim, VS Code, Zed, Helix · Python,
+- **Apps by category:** Firefox, Chromium, Brave, Zen, Tor Browser, DuckDuckGo (as a web app + Super+S search) · Neovim + LazyVim, VS Code, Zed, Helix · Python,
   Node.js, Rust, Go, Docker, lazygit, lazydocker, GitHub CLI · btop, power tools, yazi, tmux · Discord,
-  Signal · Spotify, mpv, GIMP, OBS · LibreOffice, Obsidian · LocalSend, KDE Connect · Steam (+ GPU drivers,
+  Signal, Spotify, mpv, GIMP, OBS · LibreOffice, Obsidian · LocalSend, KDE Connect · Steam (+ GPU drivers,
   Proton-GE, GameMode, MangoHud) · and anything else from the repos or the AUR through package search
 - **Web apps:** add any website as an app with its own window and launcher entry (opens in a
   Chromium-based browser if you have one, otherwise Firefox)

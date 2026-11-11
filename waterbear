@@ -5,6 +5,7 @@
 #   waterbear setup           install the Waterbear desktop with your saved settings (same as menu → Desktop → Install)
 #   waterbear theme [NAME] [ACCENT]  switch color scheme (no name = the theme menu: presets, from a picture, your own colors)
 #   waterbear background      pick your background (a generated one, or your own picture)
+#   waterbear transparency [FOCUSED OTHERS]  window transparency in % (0 = solid, 100 = see-through)
 #   waterbear dark [on|off]   dark mode for GTK / Qt apps and Firefox (no argument = switch)
 #   waterbear bar [NAME]      dashboard | islands | terminal | none
 #   waterbear shell [NAME]    bash | fish: the shell your terminals open
@@ -122,6 +123,8 @@ menu_theme() {
                "From a picture   pick a picture, get a theme in its colors::@picture"
                "Your own colors  type a background, text and two accents::@colors")
         [[ "$SCHEME" == custom ]] && opts+=("Save the theme you're trying::@save")
+        opts+=("-- Windows"
+               "Transparency     window you're on $SEE_FOCUSED% · other windows $SEE_UNFOCUSED%::@transparency")
         [[ -n "$mine" ]] && opts+=("Manage your themes  rename · change colors · delete::@manage")
         local c
         c=$(ui_pick "Theme  (now: $SCHEME${ACCENT:+ · $ACCENT})" "$last" "${opts[@]}") || return 0
@@ -144,6 +147,7 @@ menu_theme() {
                       sed -i 's/ (not saved yet)"$/"/' "$WB_USER_SCHEMES/$n"
                       SCHEME="$n"; state_save; ok "Saved as $n."; ui_pause ;;
             @manage)  themes_manage ;;
+            @transparency) if pick_transparency; then transparency_set; ui_pause; fi ;;
             *)        theme_switch "$c" && ui_pause || true ;;
         esac
     done
@@ -220,6 +224,33 @@ cmd_background() {
         for p in $need; do pkg_installed "$p" || { need_sudo; pac $need; break; }; done
     fi
     state_save; apply_all
+}
+
+# Transparency: two percentages, 0 = solid, 100 = fully see-through
+ask_percent() {  # ask_percent QUESTION DEFAULT -> prints 0-100
+    local v
+    while true; do
+        v=$(ui_input "$1  (0 = solid · 100 = fully see-through)" "$2") || return 1
+        v="${v%\%}"; v="${v// /}"
+        [[ "$v" =~ ^[0-9]+$ ]] && (( v <= 100 )) && { echo "$v"; return 0; }
+        warn "'$v' isn't a number from 0 to 100."
+    done
+}
+st_see_focused()   { local v; v=$(ask_percent "Transparency of the window you're on (focused)" "$SEE_FOCUSED") || return 1; SEE_FOCUSED="$v"; }
+st_see_unfocused() { local v; v=$(ask_percent "Transparency of the other windows" "$SEE_UNFOCUSED") || return 1; SEE_UNFOCUSED="$v"; }
+
+pick_transparency() {
+    ui_title "Transparency"
+    info "How see-through windows are, in %: 0 = solid, 100 = fully see-through."
+    info "Terminals keep their text solid and only their background fades, so 100 = floating text."
+    info "Other apps fade as a whole, text included, so very high numbers make them hard to read."; echo
+    ui_steps st_see_focused st_see_unfocused
+}
+
+transparency_set() {
+    state_save
+    if [[ "$DESKTOP" == yes ]]; then apply_all; else desktop_needed || true; fi
+    ok "Transparency: window you're on $SEE_FOCUSED% · other windows $SEE_UNFOCUSED%"
 }
 
 pick_bar() {
@@ -824,6 +855,17 @@ case "${1:-menu}" in
     installed) shift; cmd_installed "$@" ;;
     theme)    shift; cmd_theme "${1:-}" "${2:-}" ;;
     background|wallpaper) state_load; scheme_load "$SCHEME"; ui_colors; ui_title "Background"; cmd_background ;;
+    transparency) state_load
+              if [[ -n "${2:-}" ]]; then
+                  for v in "$2" "${3:-$SEE_UNFOCUSED}"; do
+                      [[ "$v" =~ ^[0-9]+$ ]] && (( v <= 100 )) || die "Use: waterbear transparency FOCUSED OTHERS (each 0-100, 0 = solid)"
+                  done
+                  SEE_FOCUSED="$2"; SEE_UNFOCUSED="${3:-$SEE_UNFOCUSED}"
+              else
+                  $INTERACTIVE || die "Use: waterbear transparency FOCUSED OTHERS (each 0-100, 0 = solid)"
+                  scheme_load "$SCHEME"; ui_colors; pick_transparency || exit 0
+              fi
+              scheme_load "$SCHEME"; transparency_set ;;
     dark)     state_load
               case "${2:-}" in on) v=yes ;; off) v=no ;; "") [[ "$DARK_MODE" == yes ]] && v=no || v=yes ;; *) die "Use: waterbear dark [on|off]" ;; esac
               scheme_load "$SCHEME"; dark_set "$v" ;;

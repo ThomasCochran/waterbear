@@ -2,13 +2,15 @@
 # Each catalog entry: id|section|label|packages|flags
 #   packages: "name" or "name/aur-name" (the repo package when the repos have it, otherwise that AUR package)
 #   flags: aur = usually from the AUR (installs yay when needed) · hook = runs app_hook_<id> after installing
-#          none = no packages (Waterbear-only extras)
-APP_SECTIONS=(Browsers Editors "Dev tools" Terminal Chat "Media & creative" "Office & notes" Sharing Gaming Extras)
+#          none = no packages (Waterbear-only extras) · webapp = a web app Waterbear makes (installed = its launcher exists)
+APP_SECTIONS=(Browsers Editors "Dev tools" Terminal "Media & creative" "Office & notes" Sharing Gaming Extras)
 APP_CATALOG=(
  "firefox|Browsers|Firefox|firefox|"
  "chromium|Browsers|Chromium (also runs web apps in their own window)|chromium|"
  "brave|Browsers|Brave|brave-bin|aur"
  "zen|Browsers|Zen Browser|zen-browser-bin|aur"
+ "tor|Browsers|Tor Browser (private browsing over Tor · downloads and checks Tor Browser on first start)|torbrowser-launcher|"
+ "duckduckgo|Browsers|DuckDuckGo (no Linux app exists: a DuckDuckGo window + Super+S searches DuckDuckGo)||none webapp hook"
  "nvim|Editors|Neovim + LazyVim (Vim as an IDE)|neovim git ripgrep fd fzf lazygit tree-sitter-cli gcc|hook"
  "vscode|Editors|VS Code (open-source build)|code|"
  "zed|Editors|Zed|zed|"
@@ -27,8 +29,8 @@ APP_CATALOG=(
  "yazi|Terminal|yazi (file manager in the terminal)|yazi|"
  "tmux|Terminal|tmux (split terminals)|tmux|"
  "ddgr|Terminal|ddgr (web search in the terminal)|ddgr|"
- "discord|Chat|Discord|discord|"
- "signal|Chat|Signal|signal-desktop|"
+ "discord|Media & creative|Discord|discord|"
+ "signal|Media & creative|Signal|signal-desktop|"
  "spotify|Media & creative|Spotify|spotify-launcher|"
  "mpv|Media & creative|mpv (video player)|mpv|"
  "gimp|Media & creative|GIMP (image editor)|gimp|"
@@ -68,6 +70,7 @@ apps_detect() {
     missing=" $(pacman -T "${names[@]}" 2> /dev/null | tr '\n' ' ' || true) "
     for e in "${APP_CATALOG[@]}"; do
         IFS='|' read -r id _ _ pk _ <<< "$e"
+        if [[ "$e" == *webapp* ]]; then [[ -f "$WEBAPP_DIR/waterbear-webapp-$id.desktop" ]] && APP_INSTALLED[$id]=1; continue; fi
         main=$(_app_main "$id" "$pk"); [[ -n "$main" ]] || continue
         for n in $main; do
             [[ "$missing" != *" $n "* ]] && { APP_INSTALLED[$id]=1; break; }
@@ -84,7 +87,7 @@ apps_reconcile() {
     local e id pk
     for e in "${APP_CATALOG[@]}"; do
         IFS='|' read -r id _ _ pk _ <<< "$e"
-        [[ -n "$pk" || "$id" == steam ]] || continue
+        [[ -n "$pk" || "$id" == steam || "$e" == *webapp* ]] || continue
         if app_is_installed "$id"; then add_app "$id"; else del_app "$id"; fi
     done
     return 0
@@ -179,6 +182,7 @@ remove_app() {
         done
     fi
     [[ "$id" == localsend ]] && fw_apply_quiet
+    if declare -F "app_unhook_$id" > /dev/null; then "app_unhook_$id" || true; fi
     del_app "$id"
     ok "Removed."
 }
@@ -226,6 +230,17 @@ app_hook_docker() {
 app_hook_localsend() {
     add_app localsend
     fw_apply_quiet
+}
+
+app_hook_duckduckgo() {
+    webapp_write DuckDuckGo "https://duckduckgo.com" duckduckgo
+    SEARCH=duckduckgo
+    info "DuckDuckGo is in your app launcher, and Super+S now searches DuckDuckGo."
+    info "In your browser: Settings → Search → Default search engine → DuckDuckGo."
+}
+app_unhook_duckduckgo() {
+    rm -f "$WEBAPP_DIR/waterbear-webapp-duckduckgo.desktop"
+    SEARCH=google
 }
 
 app_hook_rust() {
@@ -304,15 +319,8 @@ webapp_list() {  # prints "file<TAB>name<TAB>url" for each web app you added
     done
 }
 
-webapp_add() {
-    local name url slug icon f
-    name=$(ui_input "Web app name" "" "e.g. YouTube") || return 0
-    name="${name//[$'\t\r\n']/}"; [[ -n "${name// /}" ]] || return 0
-    url=$(ui_input "Address for $name" "https://") || return 0
-    [[ "$url" =~ ^https?://[^[:space:]]+\.[^[:space:]]+$ ]] || { warn "'$url' doesn't look like a web address (https://...)."; ui_pause; return 0; }
-    slug=$(tr '[:upper:]' '[:lower:]' <<< "$name" | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')
-    [[ -n "$slug" ]] || slug="app$RANDOM"
-    icon=web-browser
+webapp_write() {  # webapp_write NAME URL SLUG — the launcher entry for a web app
+    local name="$1" url="$2" slug="$3" icon=web-browser f
     [[ -f "/usr/share/icons/Papirus/64x64/apps/$slug.svg" ]] && icon="$slug"
     f="$WEBAPP_DIR/waterbear-webapp-$slug.desktop"
     mkdir -p "$WEBAPP_DIR"
@@ -326,6 +334,17 @@ Icon=$icon
 Categories=Network;WebBrowser;
 X-Waterbear-URL=$url
 DESKTOP
+}
+
+webapp_add() {
+    local name url slug
+    name=$(ui_input "Web app name" "" "e.g. YouTube") || return 0
+    name="${name//[$'\t\r\n']/}"; [[ -n "${name// /}" ]] || return 0
+    url=$(ui_input "Address for $name" "https://") || return 0
+    [[ "$url" =~ ^https?://[^[:space:]]+\.[^[:space:]]+$ ]] || { warn "'$url' doesn't look like a web address (https://...)."; ui_pause; return 0; }
+    slug=$(tr '[:upper:]' '[:lower:]' <<< "$name" | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')
+    [[ -n "$slug" ]] || slug="app$RANDOM"
+    webapp_write "$name" "$url" "$slug"
     ok "Added $name. It's in your app launcher now."
     local b found=""
     for b in chromium brave google-chrome-stable vivaldi-stable vivaldi microsoft-edge-stable; do command -v "$b" > /dev/null && found=$b && break; done

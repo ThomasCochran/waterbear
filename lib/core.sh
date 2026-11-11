@@ -24,13 +24,16 @@ die()  { printf '%s xx%s %s\n' "$c_red" "$c_off" "$1" >&2; exit 1; }
 # Saved settings (~/.config/waterbear/state.conf)
 # ---------------------------------------------------------------------------
 STATE_KEYS=(DESKTOP MENU_KEY DARK_MODE SCHEME ACCENT WALLPAPER WALL_IMAGE LIVE_ON_BATTERY LOCK_BG BAR KEYBINDS PROMPT USER_SHELL SAVER SAVER_ON_BATTERY
-            IDLE_PRESET IDLE_SAVER IDLE_LOCK IDLE_OFF IDLE_SUSPEND LOGIN SNAPPER SNAPPER_WEEKLY FIREWALL FW_PORTS YAY APPS MONITORS MON_WS AUTO_UPDATE)
+            IDLE_PRESET IDLE_SAVER IDLE_LOCK IDLE_OFF IDLE_SUSPEND LOGIN SNAPPER SNAPPER_WEEKLY FIREWALL FW_PORTS YAY APPS MONITORS MON_WS AUTO_UPDATE SEARCH
+            SEE_FOCUSED SEE_UNFOCUSED)
 
 state_defaults() {
     DESKTOP=""      # yes once the Waterbear desktop is installed (Desktop → Install); until then nothing in ~/.config is touched
     MENU_KEY=yes    # Super+Alt+Space opens this menu
     DARK_MODE=yes   # dark GTK / Qt / Firefox (off = light)
     WALL_IMAGE=""   # your own picture, for WALLPAPER=picture
+    SEE_FOCUSED=0; SEE_UNFOCUSED=8   # window transparency in % (0 = solid, 100 = fully see-through; terminals keep their text solid)
+    SEARCH=google   # what Super+S searches: google | duckduckgo (DuckDuckGo in Install → Browsers)
     SCHEME=abyss; ACCENT=""; WALLPAPER=solid; LIVE_ON_BATTERY=no; LOCK_BG=solid; BAR=dashboard; KEYBINDS=waterbear; PROMPT=hacker; USER_SHELL=bash
     SAVER=cmatrix; SAVER_ON_BATTERY=no
     IDLE_PRESET=normal; IDLE_SAVER=4; IDLE_LOCK=5; IDLE_OFF=7; IDLE_SUSPEND=20
@@ -106,6 +109,7 @@ scheme_load() {
     local i; for i in $(seq 0 15); do printf -v "P_C$i" '%s' "${p[$((i + 5))]}"; done
     P_NAME="$1"; P_RAIN="$P_A"
     dark_vars
+    opacity_vars
     # Schemes with a pickable accent: the chosen color becomes accent 2 (borders, cursor, clock, prompt)
     if [[ -n "$ACCENTS" ]]; then
         local want="${ACCENT:-$ACCENT_DEFAULT}" pair hex=""
@@ -130,6 +134,20 @@ dark_vars() {
     else
         T_GTK=Adwaita; T_PREFER=0; T_CS=default; T_PAPIRUS=Papirus; T_FF=1
     fi
+}
+
+# Window transparency (SEE_FOCUSED / SEE_UNFOCUSED, in %) → the opacity values the templates use:
+#   T_OPA / T_OPI    Hyprland's opacity for the focused / other windows (fades the whole window)
+#   T_OPK            Hyprland's opacity for unfocused terminals. Terminals stay solid and kitty makes only
+#                    its background see-through (T_OPA), so text stays sharp, even at 100% ("floating text").
+opacity_vars() {
+    local f="${SEE_FOCUSED:-0}" u="${SEE_UNFOCUSED:-8}"
+    [[ "$f" =~ ^[0-9]+$ ]] && (( f <= 100 )) || f=0
+    [[ "$u" =~ ^[0-9]+$ ]] && (( u <= 100 )) || u=8
+    read -r T_OPA T_OPI T_OPK <<< "$(awk -v f="$f" -v u="$u" 'BEGIN {
+        a = 1 - f / 100; i = 1 - u / 100
+        r = (a > 0) ? i / a : 1; if (r > 1) r = 1     # unfocused terminal: background a × r = i
+        printf "%.2f %.2f %.2f", a, i, r }')"
 }
 
 # hex_darken RRGGBB PCT — mix the color PCT% of the way toward black
@@ -159,6 +177,7 @@ render() {
     local args=(-e "s/@@BG@@/$P_BG/g" -e "s/@@FG@@/$P_FG/g" -e "s/@@A@@/$P_A/g" -e "s/@@B@@/$P_B/g"
                 -e "s/@@DIM@@/$P_DIM/g" -e "s/@@RAIN@@/$P_RAIN/g" -e "s/@@SCHEME_NAME@@/$P_NAME/g"
                 -e "s/@@GTK_THEME@@/$T_GTK/g" -e "s/@@PREFER_DARK@@/$T_PREFER/g" -e "s/@@COLOR_SCHEME@@/$T_CS/g"
+                -e "s/@@OP_ACTIVE@@/${T_OPA:-1.00}/g" -e "s/@@OP_INACTIVE@@/${T_OPI:-0.92}/g" -e "s/@@OP_TERM_INACTIVE@@/${T_OPK:-0.92}/g"
                 -e "s/@@ICON_THEME@@/${T_ICONS:-Adwaita}/g" -e "s/@@A_DARK@@/$(hex_darken "$P_A" 25)/g" -e "s/@@B_DARK@@/$(hex_darken "$P_B" 25)/g")
     local i v; for i in $(seq 15 -1 0); do v="P_C$i"; args+=(-e "s/@@C$i@@/${!v}/g"); done
     mkdir -p "$(dirname "$dest")"

@@ -59,8 +59,9 @@ hl.config({
     decoration = {
         rounding       = 4,
         rounding_power = 2,
-        active_opacity   = 1.0,
-        inactive_opacity = 0.92,
+        -- Transparency: menu → Look & feel → Theme → Transparency
+        active_opacity   = @@OP_ACTIVE@@,
+        inactive_opacity = @@OP_INACTIVE@@,
 
         -- Outer neon halo: a cyan shadow instead of a dark one
         shadow = {
@@ -190,6 +191,14 @@ hl.window_rule({
     float  = true,
     size   = { "monitor_w*0.6", "monitor_h*0.7" },
     center = true,
+})
+
+-- Terminals: Hyprland keeps them solid and kitty makes only its background see-through (same
+-- transparency as other windows), so their text stays sharp, even at 100%
+hl.window_rule({
+    name    = "terminal-transparency",
+    match   = { class = "^(kitty|dropterm|waterbear-menu|keyhelp)$" },
+    opacity = "1.0 override @@OP_TERM_INACTIVE@@ override",
 })
 
 -- Small utility windows float

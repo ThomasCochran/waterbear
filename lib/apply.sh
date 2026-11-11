@@ -285,17 +285,21 @@ write_icon_theme() {
     local src=/usr/share/icons/Papirus cache="$HOME/.cache/waterbear/icon-src" ver d size f base
     T_ICONS=Adwaita
     if [[ ! -d "$src" ]]; then rm -rf "$ICON_DIR"; return 0; fi
-    ver=$(pacman -Q papirus-icon-theme 2> /dev/null || echo unknown)
+    # v2: every standard name (folder-publicshare for ~/Public, user-desktop…), not just the folder-blue-* files
+    ver="v2 $(pacman -Q papirus-icon-theme 2> /dev/null || echo unknown)"
     if [[ "$(cat "$cache/.version" 2> /dev/null)" != "$ver" ]]; then
         rm -rf "$cache"
+        # Papirus's other folder colors (folder-red-*, folder-bluegrey-*…) are skipped; the plain names
+        # (folder.svg, folder-publicshare.svg…) all lead to its default blue ones, which get recolored.
+        local colors='adwaita|black|blue|bluegrey|breeze|brown|carmine|cyan|darkcyan|deeporange|green|grey|indigo|magenta|nordic|orange|palebrown|paleorange|pink|red|teal|violet|white|yaru|yellow'
         for d in "$src"/*x*; do
             [[ -L "$d" || ! -d "$d/places" ]] && continue
             size=${d##*/}
             mkdir -p "$cache/$size/places"
-            for f in "$d"/places/folder-blue*.svg "$d"/places/user-blue*.svg; do
-                [[ -e "$f" ]] || continue
+            for f in "$d"/places/folder*.svg "$d"/places/user-*.svg; do
                 base=${f##*/}
-                cp -L "$f" "$cache/$size/places/${base/-blue/}"   # folder-blue-music.svg → folder-music.svg
+                [[ "$base" =~ ^(folder|user)-($colors)(-|\.svg$) ]] && continue
+                [[ -e "$f" ]] && cp -L "$f" "$cache/$size/places/$base"
             done
         done
         echo "$ver" > "$cache/.version"

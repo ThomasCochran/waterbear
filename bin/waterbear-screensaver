@@ -14,5 +14,5 @@ case "$SAVER" in
     *)       exit 0 ;;
 esac
 pgrep -f "class waterbear-screensaver" > /dev/null && exit 0
-exec kitty --class waterbear-screensaver -o confirm_os_window_close=0 \
+exec kitty --class waterbear-screensaver -o confirm_os_window_close=0 -o background_opacity=1 \
     -o "background=#$P_BG" -o "color6=#$P_RAIN" sh -c "$cmd"
