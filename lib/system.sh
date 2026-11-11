@@ -77,11 +77,19 @@ snapshots_menu() {
         gui) (setsid btrfs-assistant > /dev/null 2>&1 &) ;;
     esac
     info "To roll back: reboot, pick a snapshot in the GRUB menu, then restore it with btrfs-assistant."
+    info "Snapshots hold the system (packages, /etc), not your home folder: Waterbear's version and your configs stay as they are."
 }
 
 # ---------------------------------------------------------------------------
 # Login: text login on tty1 (default) or hyprlock as the login screen
 # ---------------------------------------------------------------------------
+other_login_screen() {  # the login screen that starts at boot, if it isn't greetd: sddm, gdm, lightdm… ("" = none)
+    local t; t=$(readlink /etc/systemd/system/display-manager.service 2> /dev/null) || return 0
+    t="${t##*/}"; t="${t%.service}"
+    if [[ -n "$t" && "$t" != greetd ]]; then echo "$t"; fi
+    return 0
+}
+
 login_apply() {
     step "Login: $([[ $LOGIN == screen ]] && echo "hyprlock login screen" || echo "text login on tty1")"
     if [[ "$LOGIN" == screen ]]; then
@@ -91,10 +99,28 @@ login_apply() {
         if grep -q 'start Hyprland on tty1' "$HOME/.bash_profile" 2>/dev/null; then
             sed -i '/^# .*start Hyprland on tty1$/,/^fi$/d' "$HOME/.bash_profile"
         fi
+        # A login screen that's already there (SDDM on CachyOS, GDM, LightDM…) would keep starting at boot
+        # instead of greetd: only one can be on. It's turned off, not removed, and stays up until you reboot.
+        local dm; dm=$(other_login_screen)
+        if [[ -n "$dm" ]]; then
+            info "Your current login screen ($dm) gets turned off; hyprlock takes its place."
+            sudo systemctl disable "$dm.service" > /dev/null 2>&1 || warn "Couldn't turn off $dm."
+            info "To get $dm back later: pick the text login in this menu, then: sudo systemctl enable $dm"
+        fi
         sudo systemctl disable getty@tty1.service > /dev/null 2>&1 || true
-        sudo systemctl enable greetd.service
-        info "Takes effect on the next boot."
+        sudo systemctl enable greetd.service > /dev/null 2>&1 || true
+        if systemctl is-enabled --quiet greetd.service 2> /dev/null; then
+            info "Takes effect on the next boot."
+        else
+            warn "Couldn't turn on the hyprlock login screen (greetd)${dm:+: $dm is still your login screen}."
+            info "See why with: sudo systemctl enable greetd"
+        fi
     else
+        local dm; dm=$(other_login_screen)
+        if [[ -n "$dm" ]]; then
+            info "You have a login screen ($dm), and it stays: log in there and pick Hyprland."
+            info "For the text login on tty1 instead: sudo systemctl disable $dm   (then reboot)"
+        fi
         if systemctl is-enabled --quiet greetd.service 2>/dev/null; then
             sudo systemctl disable greetd.service
             sudo systemctl enable getty@tty1.service
@@ -292,11 +318,31 @@ waterbear_update() {
 
     if (( ${#problems[@]} )); then
         update_report_failure "${problems[@]}"
+        update_restart_notice
         return 1
     fi
     mkdir -p "$(dirname "$WB_UPDATE_LOG")"
     echo "waterbear update — $(date "+%F %T") — OK (version $new)" > "$WB_UPDATE_LOG"
     ok "System and Waterbear updated."
+    update_restart_notice
+}
+
+# Kernel or graphics driver updated: say so (a half-updated desktop can look broken until the restart),
+# and say how to get back if the new ones don't work on this computer.
+update_restart_notice() {
+    local why; why=$(restart_needed)
+    [[ -n "$why" ]] || return 0
+    echo "  restart needed: ${why//$'\n'/; }" >> "$WB_UPDATE_LOG"
+    echo
+    warn "Restart your computer to finish the update:"
+    sed 's/^/      /' <<< "$why"
+    info "Until then, newly opened windows may look wrong or stay black."
+    if [[ -f /etc/snapper/configs/root ]]; then
+        info "If the desktop doesn't come up after the restart: pick the snapshot 'before-update-$(date +%F)' in the"
+        info "boot menu, then restore it with btrfs-assistant (booting it alone doesn't undo the update)."
+    fi
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then wb_notify normal "Restart to finish the update" "${why//$'\n'/; }"; fi
+    return 0
 }
 
 # ---------------------------------------------------------------------------

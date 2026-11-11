@@ -467,6 +467,12 @@ EOF
 # Make running programs pick up the new files (only when inside Hyprland)
 reload_desktop() {
     [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] || return 0
+    # NVIDIA driver updated but not restarted yet: anything restarted now (bar, background, terminals)
+    # would load driver files that don't match the running driver and show up black. Leave it all running.
+    if nvidia_stale; then
+        warn "Not reloading the desktop: the NVIDIA driver was updated. The new configs show after a restart."
+        return 0
+    fi
     ap_step "Reloading the desktop"
     # Each one gets a time limit and no keyboard: a program that hangs can't stop the update
     rd 10 hyprctl reload

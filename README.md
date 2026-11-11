@@ -2,6 +2,11 @@
 *Warning: about 95% of this was vibe-coded by Claude, and I’ve barely tested it.*
 *In a future update I will make it more human, clean, and personalized, but for now I just want it to work.*
 
+*Sometimes waterbear will run a system update and that update will prevent you from booting properly*
+*I am not responsable for anything that happens to your mechine because of this code*
+*if you are concerned about something like that happening to your mechine, set up the snapper install through waterbear first*
+*its good at saving a snap before updates, and on first snapper install so you can always roll back when it breaks stuff*
+
 **An Arch + Hyprland setup, Omarchy-style, for the Arch you already have.** No new OS: if you run Arch,
 you can have Waterbear. Install the tool, open its menu, and from there get a themed, keyboard-driven
 desktop with switchable color schemes (or themes made from your own wallpaper), snapshots, a status bar
@@ -12,18 +17,44 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 1.2.4 |
+| **Version** | 1.2.5 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |
 
 ## Requirements
 
-- **Arch Linux** (or an Arch-based distro; the installer checks for `/etc/arch-release`)
+- **Arch Linux**, the install you already have (or an Arch-based distro; the installer checks for
+  `/etc/arch-release`). No reinstall and no special install profile needed
 - A **normal user account with sudo** (don't run the installer as root)
 - An **internet connection**
 - For the full desktop: nothing more. For snapshots, **btrfs** (+ **GRUB** to boot into them); without
   btrfs, Snapper is skipped and everything else works
+
+### What each part needs
+
+| Part | Needs | Without it |
+|---|---|---|
+| The tool, installing apps | Arch + sudo + internet | — |
+| The desktop | Hyprland 0.55 or newer (Waterbear installs the one in your distro's repos) | An older Hyprland can't read the config |
+| Snapshots | `/` on **btrfs** | Snapper is skipped, everything else works |
+| Booting into a snapshot | **GRUB** as your boot loader | Snapshots are still taken; restore them from a live USB instead |
+| Text login on tty1 | **bash** as your login shell (Hyprland starts from `~/.bash_profile`), and no other login screen | Hyprland doesn't start by itself after you log in |
+| hyprlock login screen | A single-user computer. It **replaces** the login screen you have (SDDM, GDM…): that one is turned off, not removed | — |
+
+
+### What a snapshot does and doesn't undo
+
+A snapshot holds the **system**: installed packages (so also the kernel and graphics driver) and `/etc`.
+`waterbear update` takes one first, so a system update that breaks your desktop can be undone.
+
+It only holds your **home folder** if `/home` is a plain folder on the same btrfs as `/`. Most installers
+(archinstall, CachyOS) give `/home` its own subvolume or partition, and then a snapshot leaves it alone:
+your files are safe from a rollback, but Waterbear itself and the configs it writes in `~/.config` are
+*not* rolled back either. After a rollback Waterbear still shows its newest version, and that's correct.
+
+To roll back: reboot, pick the snapshot in the GRUB menu, then **restore it with btrfs-assistant**.
+Booting a snapshot only tries it out; until it's restored, the next normal boot is the broken system again.
 
 ## Install
 
@@ -55,6 +86,21 @@ time in Look & feel → Theme), or delete them.
 
 `./install.sh --yes` skips the shortcut question. `./install.sh --desktop` also installs the desktop
 right away (add `--yes` for no questions, plus any setup options from `waterbear help`).
+
+## Already have a setup? No reinstall needed
+
+Waterbear goes on top of the Arch you're already using, one step at a time, and you decide each step:
+
+- **Installing Waterbear** adds only the tool and the `waterbear` command. Nothing else changes.
+- **Installing apps** from the menu (or searching any package) works on any Arch system, with or without
+  the Waterbear desktop. Apps you already have are detected and left alone.
+- **Settings** like the theme, bar or keybinds are only saved until you install the Waterbear desktop;
+  Waterbear doesn't write into your desktop's configs before then.
+- **Installing the Waterbear desktop** (Desktop → Install) adds Hyprland and the rest, and replaces only
+  these configs: `hypr`, `kitty`, `rofi`, `waybar`, `swaync`, `gtk-3.0`, `gtk-4.0`, `qt6ct`,
+  `xdg-desktop-portal` and `starship.toml` in `~/.config`. You choose first: keep them as the theme
+  **old_theme** (switch back to your old setup any time), or delete them. Your files, other apps and
+  their settings aren't touched.
 
 ## The menu
 
@@ -116,7 +162,8 @@ waterbear shell fish      # bash | fish: the shell your terminals open
 waterbear apps            # install apps, web apps, search any package
 waterbear monitors        # monitor order (left → right) and which workspaces go on which
 waterbear update          # snapshot → system update → newest Waterbear → refresh configs
-waterbear autoupdate ask  # off | ask | auto: check GitHub for a newer Waterbear at every login
+waterbear autoupdate ask  # off | ask | auto: check GitHub for a newer Waterbear (login + every 3 h)
+waterbear autoupdate      # check now and show the result
 waterbear snapshot        # take a snapshot now
 waterbear apply           # rewrite all configs from your saved settings
 waterbear shortcuts       # list every keyboard shortcut
@@ -126,14 +173,23 @@ waterbear version         # which version you have
 waterbear help
 ```
 
+An update also installs anything a newer Waterbear needs (e.g. the icon set for themed folders), and its
+**Refreshing configs** step lists what it rewrites as it goes. If a program it reloads doesn't respond,
+it's skipped after a few seconds instead of holding up the update.
+
 If an update fails, it says so at the end in a red **UPDATE FAILED** box (and a desktop notification)
 with what went wrong and how to fix it. The last update's result is saved in `~/.cache/waterbear/last-update.log`.
 
-**Auto-update** (menu → Update → Auto-update) checks GitHub each time you log in:
+**Auto-update** (menu → Update → Auto-update) checks GitHub when you log in, then every 3 hours while
+you stay logged in:
 - **ask** (default): if there's a newer Waterbear, a notification offers **Update now**, which runs the full update in a terminal
 - **auto**: installs the new Waterbear by itself and tells you. System packages still need your password, so
   they stay with the manual Update. If the install folder has hand-made changes, it asks instead
 - **off**: never checks
+
+Every check is written to `~/.cache/waterbear/autoupdate.log` (up to date, no internet, offered, updated,
+failed). **Update → Check now** checks right away and shows the last few results; so does running
+`waterbear autoupdate` in a terminal.
 If files in `~/.local/share/waterbear` were changed by hand, the update offers to set them aside
 (`git stash`) first, since they'd block it.
 

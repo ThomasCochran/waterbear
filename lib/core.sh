@@ -285,6 +285,21 @@ ui_pause() { $INTERACTIVE && { echo; read -rsn1 -p "  press any key to continue"
 
 need_sudo() { sudo -v || die "This needs your password (sudo)."; }
 
+# After a system update the running kernel and graphics driver are still the old ones, while the files
+# on disk are new. With NVIDIA that's a real problem: programs started before the restart load the new
+# driver files, which don't match the driver that's running ("API mismatch"), and draw black or not at all.
+nvidia_stale() {  # true when the running NVIDIA driver is older/newer than the driver files on disk
+    local loaded; loaded=$(cat /sys/module/nvidia/version 2> /dev/null) || return 1
+    [[ -n "$loaded" ]] || return 1
+    compgen -G "/usr/lib/libnvidia-glcore.so.*" > /dev/null || return 1   # no driver files to compare with
+    [[ ! -e "/usr/lib/libnvidia-glcore.so.$loaded" ]]
+}
+restart_needed() {  # prints why the computer needs a restart, one reason per line (nothing = it doesn't)
+    [[ -d "/usr/lib/modules/$(uname -r)" ]] || echo "the kernel was updated (still running $(uname -r))"
+    if nvidia_stale; then echo "the NVIDIA driver was updated (still running $(cat /sys/module/nvidia/version))"; fi
+    return 0
+}
+
 on_arch() { [[ -f /etc/arch-release ]]; }
 
 pkg_installed() { pacman -T "$1" > /dev/null 2>&1; }   # also true when another package provides it (localsend-bin → localsend)
