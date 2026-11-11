@@ -13,6 +13,7 @@
     "clock#time"
   ],
   "modules-right": [
+    "tray",
     "cpu",
     "custom/cputemp",
     "custom/gpu",
@@ -21,6 +22,7 @@
     "wireplumber",
     "battery"
   ],
+  "tray": { "icon-size": 14, "spacing": 6 },
   "hyprland/workspaces": {
     "format": "{name}",
     "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({workspace=\"e+1\"})'",

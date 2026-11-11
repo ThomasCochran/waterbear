@@ -2,19 +2,19 @@
 #
 # Local package for Waterbear. Build and install it from this folder with:
 #   makepkg -si
-# Then run `waterbear setup` as your normal user to set up the desktop.
+# Then run `waterbear` as your normal user; install the desktop from: Desktop → Install.
 
 pkgname=waterbear
-pkgver=1.1.0   # keep the same as the VERSION file
+pkgver=1.2.0   # keep the same as the VERSION file
 pkgrel=1
 pkgdesc="An Arch + Hyprland setup: themed, keyboard-driven desktop with switchable color schemes and snapshots"
 arch=('any')
 url="https://github.com/ThomasCochran/waterbear"
 license=('MIT')
-depends=('bash' 'git' 'gum' 'sudo')
+depends=('bash' 'git' 'gum' 'fzf' 'sudo')
 optdepends=(
     'hyprland: the desktop Waterbear sets up (installed by `waterbear setup`)'
-    'yay: AUR apps such as LocalSend'
+    'yay: AUR apps (Waterbear offers to install it when an app needs it)'
     'snapper: btrfs snapshots (installed by `waterbear setup`)'
 )
 # Built from the files in this folder, nothing is downloaded.

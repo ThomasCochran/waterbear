@@ -66,7 +66,7 @@ snapshot_now() {  # snapshot_now DESCRIPTION
 }
 
 snapshots_menu() {
-    [[ -f /etc/snapper/configs/root ]] || { warn "Snapper isn't set up. Turn it on in System."; ui_pause; return; }
+    [[ -f /etc/snapper/configs/root ]] || { warn "Snapper isn't set up. Turn it on in System → Snapper/yay."; ui_pause; return; }
     ui_title "Snapshots"
     sudo snapper -c root list
     echo
@@ -156,6 +156,17 @@ fw_apply() {
     ok "Firewall on: incoming blocked except the ports above."
 }
 fw_apply_quiet() { [[ "$FIREWALL" == yes ]] && command -v ufw > /dev/null && fw_apply > /dev/null; return 0; }
+
+# ---------------------------------------------------------------------------
+# Dark mode for Firefox (a system policy, so it needs sudo)
+# ---------------------------------------------------------------------------
+firefox_dark_apply() {
+    dark_vars
+    sudo mkdir -p /etc/firefox/policies
+    printf '%s\n' '{ "policies": { "Preferences": {' \
+        "  \"layout.css.prefers-color-scheme.content-override\": { \"Value\": $T_FF, \"Status\": \"default\" }" \
+        '} } }' | sudo tee /etc/firefox/policies/policies.json > /dev/null
+}
 
 # ---------------------------------------------------------------------------
 # Screensaver & lock timing

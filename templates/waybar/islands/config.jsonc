@@ -18,6 +18,7 @@
   "modules-right": [
     "group/sys"
   ],
+  "tray": { "icon-size": 14, "spacing": 6 },
   "hyprland/workspaces": {
     "format": "{name}",
     "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({workspace=\"e+1\"})'",
@@ -56,6 +57,7 @@
   "group/sys": {
     "orientation": "horizontal",
     "modules": [
+      "tray",
       "network",
       "wireplumber",
       "battery"

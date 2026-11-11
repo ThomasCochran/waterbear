@@ -2,7 +2,7 @@ KEYBINDS (Hyprland stock set)  ·  press q to close
 
 This set has no lock-screen or screenshot shortcuts. For those (Ctrl + Alt + L to lock,
 Super + Print for screenshots, and more), switch to the JaKooLit-style set in the menu:
-Super + Alt + Space → Keybinds.
+Super + Alt + Space → Keyboard → Keybind set.
 
 ## Apps
 | Shortcut | Action |

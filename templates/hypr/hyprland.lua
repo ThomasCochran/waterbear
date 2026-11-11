@@ -16,9 +16,10 @@ hl.on("hyprland.start", function()
     -- Login screen: when greetd started this session, lock with hyprlock before anything shows
     hl.exec_cmd([[[ -n "$WATERBEAR_LOCK_ON_START" ] && hyprlock --immediate-render]])
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
-    -- Dark mode for GTK apps (Thunar, file pickers) and anything that follows the system theme (Firefox)
-    hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme prefer-dark")
-    hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme Adwaita-dark")
+    -- Dark / light mode for GTK apps and anything that follows the system theme (menu → Look & feel → Dark mode)
+    hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme @@COLOR_SCHEME@@")
+    hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme @@GTK_THEME@@")
+    hl.exec_cmd("gsettings set org.gnome.desktop.interface icon-theme @@ICON_THEME@@")
     hl.exec_cmd("swaync")                                   -- notifications + panel (Super+Shift+N)
     hl.exec_cmd("~/.local/bin/waterbear-wallpaper")                -- background (solid / image / live)
     hl.exec_cmd("~/.local/bin/waterbear-bar")                      -- status bar, if one was chosen (Super+W)
@@ -35,6 +36,7 @@ end)
 -------------------------------
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
+hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")   -- Qt apps take the Waterbear colors (~/.config/qt6ct)
 
 -----------------------
 ---- LOOK AND FEEL ----
@@ -153,8 +155,8 @@ hl.gesture({
 ---------------------
 require("binds")
 
--- Waterbear system menu (works with either keybind set)
-hl.bind("SUPER + ALT + space", hl.dsp.exec_cmd("kitty --class waterbear-menu -e waterbear"))
+-- Waterbear menu (every keybind set; turn it off in: menu → Keyboard)
+hl.bind("SUPER + ALT + space", hl.dsp.exec_cmd("kitty --class waterbear-menu -e waterbear"))   -- @@MENU_KEY@@
 
 ----------------------
 ---- WINDOW RULES ----

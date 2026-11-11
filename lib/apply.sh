@@ -3,27 +3,64 @@
 # never your override files (~/.config/hypr/user.lua, ~/.config/kitty/user.conf).
 
 BACKUP_DIR="$HOME/.config/waterbear-backups"
-MANAGED_DIRS=(hypr kitty rofi waybar gtk-3.0 gtk-4.0 xdg-desktop-portal)
+MANAGED_DIRS=(hypr kitty rofi waybar gtk-3.0 gtk-4.0 xdg-desktop-portal swaync qt6ct)
+MANAGED_FILES=(starship.toml)
 
-# Before the first install: back up (or delete) any existing configs Waterbear will replace
-prepare_old_configs() {  # prepare_old_configs backup|delete
+# Before the first install: save the existing configs Waterbear will replace as the theme
+# "old_theme" (~/.config/waterbear/old-theme, kept for good), or delete them.
+prepare_old_configs() {  # prepare_old_configs save|delete
     local mode="$1" d found=false
-    for d in "${MANAGED_DIRS[@]}" ; do [[ -e "$HOME/.config/$d" ]] && found=true; done
+    for d in "${MANAGED_DIRS[@]}" "${MANAGED_FILES[@]}"; do [[ -e "$HOME/.config/$d" ]] && found=true; done
     $found || return 0
     if [[ "$mode" == delete ]]; then
-        for d in "${MANAGED_DIRS[@]}"; do rm -rf "${HOME:?}/.config/$d"; done
-        info "Deleted old configs: ${MANAGED_DIRS[*]}"
+        for d in "${MANAGED_DIRS[@]}" "${MANAGED_FILES[@]}"; do rm -rf "${HOME:?}/.config/$d"; done
+        info "Deleted old configs: ${MANAGED_DIRS[*]} ${MANAGED_FILES[*]}"
         return 0
     fi
-    local dest="$BACKUP_DIR/$(date +%F_%H%M%S)"
+    local dest="$OLD_THEME_DIR"
+    [[ -d "$dest" ]] && dest="$BACKUP_DIR/$(date +%F_%H%M%S)"   # old_theme already saved: rotate a normal backup
     mkdir -p "$dest"
-    for d in "${MANAGED_DIRS[@]}"; do [[ -e "$HOME/.config/$d" ]] && mv "$HOME/.config/$d" "$dest/"; done
-    [[ -f "$HOME/.config/starship.toml" ]] && cp "$HOME/.config/starship.toml" "$dest/"
-    info "Old configs backed up to $dest"
-    # keep only the 3 newest backups
+    for d in "${MANAGED_DIRS[@]}" "${MANAGED_FILES[@]}"; do [[ -e "$HOME/.config/$d" ]] && mv "$HOME/.config/$d" "$dest/"; done
+    if [[ "$dest" == "$OLD_THEME_DIR" ]]; then
+        info "Your old configs are saved as the theme 'old_theme' (Look & feel → Theme switches back to them)."
+    else
+        info "Old configs backed up to $dest"
+        backups_trim
+    fi
+    return 0
+}
+
+backups_trim() {  # keep only the 3 newest backups
     local old; old=$(ls -1d "$BACKUP_DIR"/*/ 2>/dev/null | sort | head -n -3)
     [[ -n "$old" ]] && rm -rf $old && info "Removed older backups (keeping the newest 3)"
     return 0
+}
+
+# Switching to old_theme: Waterbear's configs are set aside in ~/.config/waterbear/waterbear-configs
+# (your user.lua, kitty user.conf etc. come back with them), then your pre-Waterbear configs go back in place.
+WB_SAVED_CONFIGS="$WB_CONF/waterbear-configs"
+managed_move_to() {  # managed_move_to DIR — moves the configs Waterbear manages into DIR
+    local d; mkdir -p "$1"
+    for d in "${MANAGED_DIRS[@]}" "${MANAGED_FILES[@]}"; do [[ -e "$HOME/.config/$d" ]] && mv "$HOME/.config/$d" "$1/"; done
+    return 0
+}
+
+old_theme_restore() {
+    [[ -d "$OLD_THEME_DIR" ]] || { warn "There's no old_theme saved."; return 1; }
+    rm -rf "$WB_SAVED_CONFIGS"
+    managed_move_to "$WB_SAVED_CONFIGS"
+    cp -a "$OLD_THEME_DIR/." "$HOME/.config/"
+    ok "Your setup from before Waterbear is back in place."
+}
+
+# Leaving old_theme: what's there now (your old setup, maybe changed since) goes to a backup,
+# Waterbear's own configs come back, then the new theme is written over them.
+old_theme_leave() {
+    local dest="$BACKUP_DIR/$(date +%F_%H%M%S)"
+    managed_move_to "$dest"
+    [[ -d "$WB_SAVED_CONFIGS" ]] && { cp -a "$WB_SAVED_CONFIGS/." "$HOME/.config/"; rm -rf "$WB_SAVED_CONFIGS"; }
+    info "Your old setup as it was is backed up to $dest (old_theme itself stays saved)."
+    backups_trim
 }
 
 link_bins() {  # helper scripts + the waterbear command go in ~/.local/bin (as links into Waterbear)
@@ -159,6 +196,18 @@ hex_to_unit() {  # ff8800 -> "1.0000 0.5333 0.0000"
         'BEGIN { printf "%.4f %.4f %.4f", r / 255, g / 255, b / 255 }'
 }
 
+# Your own picture as the background (WALLPAPER=picture): scaled to cover the screen
+picture_svg() {  # picture_svg FILE W H
+    local ext="${1##*.}"
+    cp "$1" "$WALL_DIR/picture-src.$ext"
+    cat > "$WALL_DIR/wall.svg" << SVG
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="$2" height="$3" viewBox="0 0 $2 $3">
+  <rect width="$2" height="$3" fill="#$P_BG"/>
+  <image xlink:href="picture-src.$ext" href="picture-src.$ext" x="0" y="0" width="$2" height="$3" preserveAspectRatio="xMidYMid slice"/>
+</svg>
+SVG
+}
+
 # Your own image wins over the bundled waterbear: ~/.config/waterbear/logo.svg / .png / .jpg
 logo_source() {
     local f
@@ -169,10 +218,15 @@ logo_source() {
 
 wallpaper_generate() {
     rm -rf "$WALL_DIR"; mkdir -p "$WALL_DIR"
-    case "$WALLPAPER" in grid|orbit|logo) ;; *) return 0 ;; esac
+    case "$WALLPAPER" in grid|orbit|logo|picture) ;; *) return 0 ;; esac
+    if [[ "$WALLPAPER" == picture && ! -f "$WALL_IMAGE" ]]; then
+        warn "Your background picture is missing ($WALL_IMAGE); using the solid background."; return 0
+    fi
     command -v rsvg-convert > /dev/null || { warn "rsvg-convert missing (sudo pacman -S librsvg); using the solid background."; return 0; }
     local w h; read -r w h <<< "$(screen_size)"
-    if [[ "$WALLPAPER" == logo ]]; then
+    if [[ "$WALLPAPER" == picture ]]; then
+        picture_svg "$WALL_IMAGE" "$w" "$h"
+    elif [[ "$WALLPAPER" == logo ]]; then
         # Gradient map: the image's darkest shade becomes the theme background, white becomes the accent
         local src ext r1 g1 b1 r2 g2 b2
         src=$(logo_source); ext="${src##*.}"
@@ -224,19 +278,118 @@ write_wallpaper_configs() {
     fi
 }
 
+# Folder icons in your theme's colors: Papirus, with its blue folders recolored to the accent.
+# The renamed copies are made once (and again when Papirus updates); each theme change only recolors them.
+ICON_DIR="$HOME/.local/share/icons/Waterbear"
+write_icon_theme() {
+    local src=/usr/share/icons/Papirus cache="$HOME/.cache/waterbear/icon-src" ver d size f base
+    T_ICONS=Adwaita
+    if [[ ! -d "$src" ]]; then rm -rf "$ICON_DIR"; return 0; fi
+    ver=$(pacman -Q papirus-icon-theme 2> /dev/null || echo unknown)
+    if [[ "$(cat "$cache/.version" 2> /dev/null)" != "$ver" ]]; then
+        rm -rf "$cache"
+        for d in "$src"/*x*; do
+            [[ -L "$d" || ! -d "$d/places" ]] && continue
+            size=${d##*/}
+            mkdir -p "$cache/$size/places"
+            for f in "$d"/places/folder-blue*.svg "$d"/places/user-blue*.svg; do
+                [[ -e "$f" ]] || continue
+                base=${f##*/}
+                cp -L "$f" "$cache/$size/places/${base/-blue/}"   # folder-blue-music.svg → folder-music.svg
+            done
+        done
+        echo "$ver" > "$cache/.version"
+    fi
+    rm -rf "$ICON_DIR"; mkdir -p "$ICON_DIR"
+    cp -a "$cache/." "$ICON_DIR/"; rm -f "$ICON_DIR/.version"
+    find "$ICON_DIR" -name '*.svg' -exec sed -i -e "s/#5294e2/#$P_A/gI" -e "s/#4877b1/#$(hex_darken "$P_A" 15)/gI" \
+        -e "s/#1d344f/#$(hex_darken "$P_A" 65)/gI" {} +
+    local dirs=() entries=""
+    for d in "$ICON_DIR"/*x*; do
+        size=${d##*/}; dirs+=("$size/places")
+        entries+=$'\n'"[$size/places]"$'\n'"Context=Places"$'\n'"Size=${size%%x*}"$'\n'"Type=Fixed"$'\n'
+    done
+    {
+        echo "[Icon Theme]"
+        echo "Name=Waterbear"
+        echo "Comment=Papirus with folders in your Waterbear theme's colors (generated, rewritten on every theme change)"
+        echo "Inherits=$T_PAPIRUS,hicolor"
+        echo "Example=folder"
+        echo "Directories=$(IFS=,; echo "${dirs[*]}")"
+        printf '%s' "$entries"
+    } > "$ICON_DIR/index.theme"
+    command -v gtk-update-icon-cache > /dev/null && gtk-update-icon-cache -q -f -t "$ICON_DIR" 2> /dev/null
+    T_ICONS=Waterbear
+}
+
+palette_is_dark() {  # true when the loaded theme's background is dark
+    local r=$((16#${P_BG:0:2})) g=$((16#${P_BG:2:2})) b=$((16#${P_BG:4:2}))
+    (( r * 299 + g * 587 + b * 114 < 128000 ))
+}
+
+# GTK 3 + 4: every app in the theme's colors. If dark mode doesn't match the theme
+# (light mode with a dark theme, or the other way), apps keep plain Adwaita and only take the accent.
+write_gtk() {
+    local full=no g3="$HOME/.config/gtk-3.0" g4="$HOME/.config/gtk-4.0" tmp
+    if palette_is_dark; then [[ "$DARK_MODE" == yes ]] && full=yes; else [[ "$DARK_MODE" != yes ]] && full=yes; fi
+    render gtk/settings.ini "$g3/settings.ini"
+    render gtk/settings.ini "$g4/settings.ini"
+    tmp=$(mktemp -d)
+    if [[ "$full" == yes ]]; then
+        render gtk/gtk3-all.css "$tmp/a"; render gtk/thunar.css "$tmp/b"
+        render gtk/gtk4.css "$g4/gtk.css"
+    else
+        render gtk/gtk3-accent.css "$tmp/a"; : > "$tmp/b"
+        render gtk/gtk4-accent.css "$g4/gtk.css"
+    fi
+    {
+        echo "/* ~/.config/gtk-3.0/gtk.css — generated by Waterbear ($P_NAME). Rewritten on every theme change."
+        echo "   Your own CSS goes in user.css (loaded last, so it wins). */"
+        cat "$tmp/a" "$tmp/b"
+        echo '@import url("user.css");'
+    } > "$g3/gtk.css"
+    rm -rf "$tmp"
+    echo '@import url("user.css");' >> "$g4/gtk.css"
+    [[ -f "$g3/user.css" ]] || echo "/* ~/.config/gtk-3.0/user.css — your GTK 3 CSS (never overwritten; loads after Waterbear's) */" > "$g3/user.css"
+    [[ -f "$g4/user.css" ]] || echo "/* ~/.config/gtk-4.0/user.css — your GTK 4 CSS (never overwritten; loads after Waterbear's) */" > "$g4/user.css"
+}
+
+write_qt() {  # Qt 6 apps through qt6ct, with the theme's colors
+    local d="$HOME/.config/qt6ct"
+    render qt6ct/waterbear.conf "$d/colors/waterbear.conf"
+    {
+        echo "# ~/.config/qt6ct/qt6ct.conf — generated by Waterbear"
+        echo "[Appearance]"
+        echo "color_scheme_path=$d/colors/waterbear.conf"
+        echo "custom_palette=true"
+        echo "icon_theme=$T_ICONS"
+        echo "style=Fusion"
+        echo "standard_dialogs=default"
+    } > "$d/qt6ct.conf"
+}
+
 apply_all() {
+    if [[ "$DESKTOP" != yes ]]; then
+        desktop_needed || true
+        return 0
+    fi
+    if [[ "$SCHEME" == old_theme ]]; then
+        # Your pre-Waterbear configs are in place; leave them alone
+        link_bins
+        reload_desktop
+        return 0
+    fi
     scheme_load "$SCHEME"
     link_bins
     local H="$HOME/.config/hypr"
 
     # Hyprland
+    write_icon_theme   # first: sets T_ICONS, used by the templates below
     render hypr/hyprland.lua "$H/hyprland.lua"
+    if [[ "$MENU_KEY" == yes ]]; then sed -i 's/   -- @@MENU_KEY@@$//' "$H/hyprland.lua"
+    else sed -i 's/^\(hl.bind("SUPER + ALT + space".*\)   -- @@MENU_KEY@@$/-- (turned off in the menu) \1/' "$H/hyprland.lua"; fi
     write_monitors_lua
-    if [[ "$KEYBINDS" == waterbear ]]; then
-        render hypr/binds-waterbear.lua "$H/binds.lua"
-    else
-        render hypr/binds-default.lua "$H/binds.lua"
-    fi
+    render "hypr/binds-$KEYBINDS.lua" "$H/binds.lua"
     render hypr/hyprlock.conf "$H/hyprlock.conf"
     wallpaper_generate
     write_wallpaper_configs
@@ -260,10 +413,9 @@ EOF
     [[ -f "$HOME/.config/kitty/user.conf" ]] || echo "# ~/.config/kitty/user.conf — your kitty settings (never overwritten)" > "$HOME/.config/kitty/user.conf"
     render rofi/config.rasi "$HOME/.config/rofi/config.rasi"
     render rofi/neon.rasi "$HOME/.config/rofi/neon.rasi"
-    render gtk/settings.ini "$HOME/.config/gtk-3.0/settings.ini"
-    render gtk/settings.ini "$HOME/.config/gtk-4.0/settings.ini"
-    render gtk/gtk.css "$HOME/.config/gtk-3.0/gtk.css"   # Thunar in the theme's colors
-    [[ -f "$HOME/.config/gtk-3.0/user.css" ]] || echo "/* ~/.config/gtk-3.0/user.css — your GTK 3 CSS (never overwritten; loads after Waterbear's) */" > "$HOME/.config/gtk-3.0/user.css"
+    write_gtk
+    write_qt
+    render swaync/style.css "$HOME/.config/swaync/style.css"
     render portal/hyprland-portals.conf "$HOME/.config/xdg-desktop-portal/hyprland-portals.conf"
 
     # Status bar
@@ -309,5 +461,13 @@ reload_desktop() {
     pkill -x hypridle 2>/dev/null; (setsid hypridle > /dev/null 2>&1 &)
     "$WB_BIN/waterbear-wallpaper" > /dev/null 2>&1 || true
     pkill -USR1 -x kitty 2>/dev/null || true   # kitty reloads its config on SIGUSR1
+    swaync-client -rs > /dev/null 2>&1 || true   # notification colors
+    if command -v gsettings > /dev/null; then
+        gsettings set org.gnome.desktop.interface color-scheme "$T_CS" 2> /dev/null || true
+        gsettings set org.gnome.desktop.interface gtk-theme "$T_GTK" 2> /dev/null || true
+        gsettings set org.gnome.desktop.interface icon-theme "${T_ICONS:-Adwaita}" 2> /dev/null || true
+    fi
+    # Thunar keeps its old icons and colors until it restarts
+    if pgrep -x thunar > /dev/null; then thunar -q 2> /dev/null || true; fi
     return 0
 }

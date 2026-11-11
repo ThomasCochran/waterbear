@@ -19,3 +19,8 @@ tooltip label { color: #@@FG@@; }
 #battery { color: #@@C2@@; }
 #battery.warning:not(.charging) { color: #@@C3@@; }
 #battery.critical:not(.charging) { color: #@@C1@@; }
+#tray { padding: 0 8px; }
+#tray > .passive { -gtk-icon-effect: dim; }
+#tray > .needs-attention { -gtk-icon-effect: highlight; background: alpha(#@@C1@@, 0.3); border-radius: 4px; }
+#tray menu { background: #@@C0@@; color: #@@FG@@; border: 1px solid #@@C8@@; }
+#tray menu menuitem:hover { background: #@@A@@; color: #@@BG@@; }

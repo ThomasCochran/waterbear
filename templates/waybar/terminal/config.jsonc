@@ -12,11 +12,13 @@
     "memory"
   ],
   "modules-right": [
+    "tray",
     "network",
     "wireplumber",
     "battery",
     "clock"
   ],
+  "tray": { "icon-size": 14, "spacing": 6 },
   "hyprland/workspaces": {
     "format": "{name}",
     "on-scroll-up": "hyprctl dispatch 'hl.dsp.focus({workspace=\"e+1\"})'",

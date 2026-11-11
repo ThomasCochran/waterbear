@@ -2,25 +2,28 @@
 # waterbear — an Arch + Hyprland setup. https://github.com/ThomasCochran/waterbear
 #
 #   waterbear                 open the menu (also: Super+Alt+Space)
-#   waterbear setup           first-time setup wizard (run by the installer)
-#   waterbear theme [NAME] [ACCENT]  switch color scheme (no name = pick from a list)
+#   waterbear setup           install the Waterbear desktop with your saved settings (same as menu → Desktop → Install)
+#   waterbear theme [NAME] [ACCENT]  switch color scheme (no name = the theme menu: presets, from a picture, your own colors)
+#   waterbear background      pick your background (a generated one, or your own picture)
+#   waterbear dark [on|off]   dark mode for GTK / Qt apps and Firefox (no argument = switch)
 #   waterbear bar [NAME]      dashboard | islands | terminal | none
 #   waterbear shell [NAME]    bash | fish: the shell your terminals open
-#   waterbear apps            install / remove optional apps
+#   waterbear apps            install / remove apps, search any package, web apps
 #   waterbear monitors        monitor order (left → right) and which workspaces go on which
 #   waterbear update          snapshot, update the system and Waterbear, refresh configs
 #   waterbear autoupdate [off|ask|auto]  no argument = check now (runs at every login)
 #   waterbear snapshot [DESC] take a snapshot now
 #   waterbear apply           rewrite all configs from your saved settings
-#   waterbear shortcuts       list every keyboard shortcut (also: Super+H)
+#   waterbear shortcuts       list every keyboard shortcut (also: Super+H, or Super+K with Omarchy keys)
+#   waterbear shortcut on|off the Super+Alt+Space shortcut that opens this menu
 #   waterbear version         show which version is installed
 #   waterbear help
 #
-# Setup options (for `waterbear setup` / the installer):
-#   --yes                 no questions, use defaults (Abyss, Dashboard bar, Snapper on, text login)
+# Setup options (for `waterbear setup`, or `./install.sh --desktop ...`):
+#   --yes                 no questions, use the saved settings / defaults
 #   --scheme NAME   --accent COLOR (Noir: white red orange yellow blue green purple pink)
 #   --wallpaper solid|grid|orbit|logo|cmatrix|cava   --bar NAME   --prompt minimal|info|hacker|off
-#   --shell bash|fish     the shell your terminals open
+#   --shell bash|fish     --keybinds waterbear|omarchy|default     --light (light mode)
 #   --apps "btop nvim ..."      --steam      --yay      --auto-update off|ask|auto
 #   --login-screen  --text-login   --no-snapper   --no-firewall   --delete-old
 set -euo pipefail
@@ -29,50 +32,161 @@ WB_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 export WATERBEAR_HOME="${WATERBEAR_HOME:-$(dirname "$WB_SELF")}"
 # shellcheck source=lib/core.sh
 . "$WATERBEAR_HOME/lib/core.sh"
+. "$WB_HOME/lib/menu.sh"
 . "$WB_HOME/lib/apply.sh"
 . "$WB_HOME/lib/apps.sh"
 . "$WB_HOME/lib/system.sh"
 . "$WB_HOME/lib/monitors.sh"
+. "$WB_HOME/lib/palette.sh"
 
 [[ $EUID -eq 0 ]] && die "Run waterbear as your normal user (it uses sudo when needed)."
 command -v gum > /dev/null || INTERACTIVE=false
+{ : < /dev/tty; } 2> /dev/null || INTERACTIVE=false   # no terminal to ask in (e.g. started from a hotkey without one)
+OLD_CONFIGS=save
+
+apply_quiet() { [[ "$DESKTOP" == yes ]] && apply_all; return 0; }   # refresh configs only if the desktop is installed
 
 # ---------------------------------------------------------------------------
-# Pickers shared by the setup wizard and the menu
+# Themes
 # ---------------------------------------------------------------------------
-pick_scheme() {
-    local opts=() s
-    for s in $(scheme_list); do opts+=("$(printf '%-8s' "$s")  $(scheme_desc "$s")::$s"); done
-    ui_pick "Color scheme" "$SCHEME" "${opts[@]}"
+theme_label() {  # one line for the theme list
+    local t="$1" d
+    d=$(scheme_desc "$t")
+    [[ "$t" == custom ]] && d="trying it (not saved yet)"
+    printf '%-12s  %s' "$t" "$d"
 }
 
-# Question steps for ui_steps: 0 = answered, 1 = back (esc), 2 = doesn't apply
-st_scheme() {
-    local v; v=$(pick_scheme) || return 1
-    [[ "$v" != "$SCHEME" ]] && ACCENT=""
-    SCHEME="$v"; scheme_load "$SCHEME"; ui_colors
-}
-
-st_accent() {  # for schemes like Noir that let you choose the accent color
-    local opts=() pair cur="${ACCENT:-$(scheme_accent_default "$SCHEME")}" v
+pick_accent() {  # for schemes like Noir that let you choose the accent color; prints it ("" = none to pick)
+    local opts=() pair cur="${ACCENT:-$(scheme_accent_default "$1")}"
     while IFS= read -r pair; do
         opts+=("$(printf '%-7s' "${pair%%:*}") #${pair#*:}::${pair%%:*}")
-    done < <(scheme_accents "$SCHEME")
-    [[ ${#opts[@]} -eq 0 ]] && { ACCENT=""; return 2; }
-    v=$(ui_pick "Accent color for $SCHEME" "$cur" "${opts[@]}") || return 1
-    ACCENT="$v"; scheme_load "$SCHEME"; ui_colors
+    done < <(scheme_accents "$1")
+    [[ ${#opts[@]} -eq 0 ]] && { echo ""; return 0; }
+    ui_pick "Accent color for $1" "$cur" "${opts[@]}"
 }
 
+# Switch to a theme and write the configs. Your background stays as it is.
+theme_switch() {  # theme_switch NAME [ACCENT]
+    local new="$1" old="$SCHEME"
+    if [[ "$new" == old_theme ]]; then
+        [[ "$old" == old_theme ]] && { info "You're already on old_theme."; return 0; }
+        if [[ "$DESKTOP" == yes ]]; then
+            info "old_theme is your whole setup from before Waterbear: its Hyprland, kitty, bar and other configs"
+            info "go back in place (Waterbear's are backed up). Pick any other theme to come back."
+            ui_confirm "Switch to your setup from before Waterbear?" y || return 1
+            old_theme_restore || return 1
+        fi
+        SCHEME=old_theme; ACCENT=""; state_save
+        shortcut_apply
+        reload_desktop
+        return 0
+    fi
+    if [[ "$old" == old_theme && "$DESKTOP" == yes ]]; then
+        shortcut_strip   # the shortcut block added to your old Hyprland config
+        old_theme_leave
+    fi
+    SCHEME="$new"; ACCENT="${2:-}"
+    if [[ -z "$ACCENT" && -n "$(scheme_accents "$SCHEME")" ]]; then
+        scheme_load "$SCHEME"; ui_colors
+        ACCENT=$(pick_accent "$SCHEME") || { SCHEME="$old"; return 1; }
+    fi
+    [[ -n "$ACCENT" && -z "$(scheme_accents "$SCHEME")" ]] && ACCENT=""
+    scheme_load "$SCHEME"
+    state_save
+    if [[ "$DESKTOP" == yes ]]; then
+        apply_all
+        [[ "$old" == old_theme ]] && shortcut_apply
+        ok "Theme: $P_NAME (new terminals pick it up; Neovim on next start)"
+    else
+        desktop_needed || true
+    fi
+}
+
+menu_theme() {
+    local last="$SCHEME"
+    while true; do
+        scheme_load "$SCHEME"; ui_colors
+        ui_title "Theme"
+        local opts=() t mine
+        mine=$(scheme_user)
+        if [[ -n "$mine" ]]; then
+            opts+=("-- Your themes")
+            for t in $mine; do opts+=("$(theme_label "$t")::$t"); done
+        fi
+        opts+=("-- Built-in")
+        for t in $(scheme_builtin); do opts+=("$(theme_label "$t")::$t"); done
+        if [[ -d "$OLD_THEME_DIR" ]]; then
+            opts+=("-- Before Waterbear" "$(theme_label old_theme)::old_theme")
+        fi
+        opts+=("-- Make a theme"
+               "From a picture   pick a picture, get a theme in its colors::@picture"
+               "Your own colors  type a background, text and two accents::@colors")
+        [[ "$SCHEME" == custom ]] && opts+=("Save the theme you're trying::@save")
+        [[ -n "$mine" ]] && opts+=("Manage your themes  rename · change colors · delete::@manage")
+        local c
+        c=$(ui_pick "Theme  (now: $SCHEME${ACCENT:+ · $ACCENT})" "$last" "${opts[@]}") || return 0
+        last="$c"
+        case "$c" in
+            @picture) if theme_from_picture; then
+                          local need; need=$(wallpaper_pkgs)
+                          [[ -n "$need" && "$DESKTOP" == yes ]] && { need_sudo; pac $need; }
+                          state_save
+                          if [[ "$DESKTOP" == yes ]]; then apply_all; ok "Theme: $SCHEME"; else desktop_needed || true; fi
+                          ui_pause
+                      fi ;;
+            @colors)  if theme_from_colors; then
+                          state_save
+                          if [[ "$DESKTOP" == yes ]]; then apply_all; ok "Theme: $SCHEME"; else desktop_needed || true; fi
+                          ui_pause
+                      fi ;;
+            @save)    local n; n=$(theme_name_ask) || continue
+                      mv "$WB_USER_SCHEMES/custom" "$WB_USER_SCHEMES/$n"
+                      sed -i 's/ (not saved yet)"$/"/' "$WB_USER_SCHEMES/$n"
+                      SCHEME="$n"; state_save; ok "Saved as $n."; ui_pause ;;
+            @manage)  themes_manage ;;
+            *)        theme_switch "$c" && ui_pause || true ;;
+        esac
+    done
+}
+
+cmd_theme() {
+    state_load
+    if [[ -z "${1:-}" ]]; then
+        $INTERACTIVE || die "Give a theme name: waterbear theme NAME (options: $(scheme_list | tr '\n' ' '))"
+        menu_theme; return 0
+    fi
+    scheme_file "$1" > /dev/null || die "Unknown theme '$1'. Options: $(scheme_list | tr '\n' ' ')"
+    local acc="${2:-}"
+    [[ -z "$acc" && "$1" == "$SCHEME" ]] && acc="$ACCENT"
+    [[ -z "$acc" && -n "$(scheme_accents "$1")" ]] && acc=$(scheme_accent_default "$1")
+    theme_switch "$1" "$acc"
+}
+
+# ---------------------------------------------------------------------------
+# Pickers shared by the menu and the command line
+# ---------------------------------------------------------------------------
 st_wallpaper() {
     local v
-    v=$(ui_pick "Background" "$WALLPAPER" \
+    v=$(ui_pick "Background  (your theme stays the same)" "$WALLPAPER" \
         "solid        your theme's background color::solid" \
-        "grid         synthwave grid horizon::grid" \
-        "orbit        a ringed planet::orbit" \
+        "picture      your own picture${WALL_IMAGE:+ (now: $(basename "$WALL_IMAGE"))}::picture" \
+        "grid         synthwave grid horizon, in your theme's colors::grid" \
+        "orbit        a ringed planet, in your theme's colors::orbit" \
         "logo         the waterbear logo, in your theme's colors::logo" \
         "matrix rain  live: cmatrix falling behind your windows::cmatrix" \
         "sound bars   live: cava bars that move with your music::cava") || return 1
     WALLPAPER="$v"
+}
+
+st_picture() {
+    [[ "$WALLPAPER" == picture ]] || return 2
+    if [[ -f "$WALL_IMAGE" ]]; then
+        local k
+        k=$(ui_pick "Background picture" keep "Keep $(basename "$WALL_IMAGE")::keep" "Pick another picture::new") || return 1
+        [[ "$k" == keep ]] && return 0
+    fi
+    local img; img=$(pick_picture) || return 1
+    WALL_IMAGE=$(picture_keep "$img")
 }
 
 st_live_battery() {
@@ -89,23 +203,29 @@ st_lock_bg() {
     LOCK_BG="$v"
 }
 
-st_bar()    { local v; v=$(pick_bar) || return 1; BAR="$v"; }
-st_prompt() { local v; v=$(pick_prompt) || return 1; PROMPT="$v"; }
-
-pick_wallpaper() { ui_steps st_wallpaper st_live_battery st_lock_bg; }
+pick_wallpaper() { ui_steps st_wallpaper st_picture st_live_battery st_lock_bg; }
 
 wallpaper_pkgs() {  # packages the chosen background needs
     case "$WALLPAPER" in
-        grid|orbit|logo) echo "hyprpaper librsvg" ;;
-        cmatrix)         echo "cmatrix" ;;
-        cava)            echo "cava" ;;
+        grid|orbit|logo|picture) echo "hyprpaper librsvg" ;;
+        cmatrix)                 echo "cmatrix" ;;
+        cava)                    echo "cava" ;;
     esac
+}
+
+cmd_background() {
+    pick_wallpaper || return 0
+    local need p; need=$(wallpaper_pkgs)
+    if [[ -n "$need" && "$DESKTOP" == yes ]]; then
+        for p in $need; do pkg_installed "$p" || { need_sudo; pac $need; break; }; done
+    fi
+    state_save; apply_all
 }
 
 pick_bar() {
     ui_pick "Status bar  (Super+W shows/hides it)" "$BAR" \
-        "dashboard  full bar: date · 12h clock · CPU/GPU/memory · wifi · volume · battery::dashboard" \
-        "islands    four floating islands: workspaces · date/time · stats · wifi/volume/battery::islands" \
+        "dashboard  full bar: date · 12h clock · CPU/GPU/memory · tray · wifi · volume · battery::dashboard" \
+        "islands    four floating islands: workspaces · date/time · stats · tray/wifi/volume/battery::islands" \
         "terminal   text-only, htop-style meters::terminal" \
         "none       no bar (Super+I still pops up time/battery/wifi)::none"
 }
@@ -124,9 +244,16 @@ pick_shell() {
         "fish  friendly: suggestions as you type, colors, tab completion with descriptions::fish"
 }
 
+pick_keybinds() {
+    ui_pick "Keyboard shortcuts  (full list: Keyboard → Shortcut list)" "$KEYBINDS" \
+        "Waterbear  JaKooLit-style (Super+Enter terminal · Super+D apps · Super+Q close)::waterbear" \
+        "Omarchy    like Omarchy (Super+Enter terminal · Super+Space apps · Super+W close · Super+K help)::omarchy" \
+        "Hyprland   stock shortcuts (Super+Q terminal · Super+R apps · Super+C close)::default"
+}
+
 show_shortcuts() {  # the cheat sheet for the keybind set in use. Never exits the menu on a problem.
     local f="$HOME/.config/hypr/KEYBINDS.md" src="$WB_HOME/templates/hypr/KEYBINDS-$KEYBINDS.md"
-    if [[ ! -f "$f" ]]; then
+    if [[ ! -f "$f" ]] || ! grep -qs "KEYBINDS" "$f"; then
         [[ -f "$src" ]] || { warn "No shortcut list found for the '$KEYBINDS' set ($src)."; ui_pause; return 0; }
         f="$src"
     fi
@@ -135,12 +262,6 @@ show_shortcuts() {  # the cheat sheet for the keybind set in use. Never exits th
     else cat "$f"; ui_pause
     fi
     return 0
-}
-
-pick_keybinds() {
-    ui_pick "Keyboard shortcuts  (full list later: Super+Alt+Space → Shortcuts)" "$KEYBINDS" \
-        "Waterbear shortcuts, JaKooLit-style (Super+Enter terminal · Super+D apps · Super+Q close)::waterbear" \
-        "Hyprland stock shortcuts (Super+Q terminal · Super+R apps · Super+C close)::default"
 }
 
 st_idle_preset() {
@@ -192,18 +313,6 @@ st_fw_ports() {
     FW_PORTS="$v"
 }
 
-st_sys_checks() {  # setup wizard: snapper · weekly · yay
-    local sys
-    sys=$(ui_checks "System" "$( [[ $SNAPPER == yes ]] && echo snapper; [[ $SNAPPER_WEEKLY == yes ]] && echo weekly; [[ $YAY == yes ]] && echo yay )" \
-        "Snapper snapshots (roll back from the boot menu)::snapper" \
-        "Weekly automatic snapshot (needs Snapper)::weekly" \
-        "yay: AUR helper (unlocks LocalSend and other AUR apps)::yay") || return 1
-    [[ " $sys " == *" snapper "* ]] && SNAPPER=yes || SNAPPER=no
-    [[ " $sys " == *" weekly "* && $SNAPPER == yes ]] && SNAPPER_WEEKLY=yes || SNAPPER_WEEKLY=no
-    [[ " $sys " == *" yay "* ]] && YAY=yes || { YAY=no; del_app localsend; }
-    return 0
-}
-
 pick_autoupdate() {
     ui_pick "Auto-update  (checks GitHub for a newer Waterbear each time you log in)" "$AUTO_UPDATE" \
         "ask   a notification with an Update now button (full update: snapshot · system · Waterbear)::ask" \
@@ -214,18 +323,115 @@ pick_autoupdate() {
 pick_idle()     { ui_steps st_idle_preset st_idle_custom st_saver st_saver_battery; }
 pick_firewall() { ui_steps st_fw_on st_fw_ports; }
 
-pick_apps() {  # prints the new selection
-    local opts=(); mapfile -t opts < <(app_options)
-    ui_checks "Apps" "$APPS" "${opts[@]}"
+dark_set() {  # dark_set yes|no
+    DARK_MODE="$1"; state_save
+    if [[ "$DESKTOP" == yes ]]; then
+        need_sudo; firefox_dark_apply
+        apply_all
+    fi
+    ok "Dark mode: $([[ $DARK_MODE == yes ]] && echo on || echo "off (light)") · Firefox and apps that were open pick it up when they restart."
 }
 
 # ---------------------------------------------------------------------------
-# First-time setup wizard
+# The Super+Alt+Space shortcut
+# ---------------------------------------------------------------------------
+menu_term_cmd() {  # a terminal command that opens the menu, for Hyprland configs that aren't Waterbear's
+    local t
+    for t in kitty foot alacritty ghostty wezterm xterm; do command -v "$t" > /dev/null && break; t=""; done
+    case "$t" in
+        kitty)     echo "kitty --class waterbear-menu -e waterbear" ;;
+        foot)      echo "foot --app-id waterbear-menu waterbear" ;;
+        alacritty) echo "alacritty --class waterbear-menu -e waterbear" ;;
+        ghostty)   echo "ghostty --class=waterbear-menu -e waterbear" ;;
+        wezterm)   echo "wezterm start --class waterbear-menu waterbear" ;;
+        xterm)     echo "xterm -class waterbear-menu -e waterbear" ;;
+        *)         echo "kitty --class waterbear-menu -e waterbear" ;;
+    esac
+}
+
+# Puts the shortcut where it works: Waterbear's own Hyprland config when the desktop is installed,
+# otherwise a marked block at the end of your own Hyprland config (removed again by "off").
+shortcut_strip() {  # removes the block Waterbear added to your own Hyprland config
+    local f
+    for f in "$HOME/.config/hypr/hyprland.conf" "$HOME/.config/hypr/hyprland.lua"; do
+        if [[ -f "$f" ]] && grep -q '>>> waterbear >>>' "$f"; then
+            sed -i '/>>> waterbear >>>/,/<<< waterbear <<</d' "$f"
+            sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$f"   # and the blank lines it left at the end
+        fi
+    done
+    return 0
+}
+
+shortcut_apply() {
+    local own=true
+    [[ "$DESKTOP" == yes && "$SCHEME" != old_theme ]] && own=false
+    shortcut_strip
+    if ! $own; then apply_all > /dev/null; return 0; fi
+    [[ "$MENU_KEY" == yes ]] || return 0
+    local cmd; cmd=$(menu_term_cmd)
+    if [[ -f "$HOME/.config/hypr/hyprland.lua" ]]; then
+        printf '\n-- >>> waterbear >>>  (added by Waterbear; remove with: waterbear shortcut off)\nhl.bind("SUPER + ALT + space", hl.dsp.exec_cmd("%s"))\n-- <<< waterbear <<<\n' "$cmd" >> "$HOME/.config/hypr/hyprland.lua"
+        ok "Super + Alt + Space added to ~/.config/hypr/hyprland.lua"
+    elif [[ -f "$HOME/.config/hypr/hyprland.conf" ]]; then
+        printf '\n# >>> waterbear >>>  (added by Waterbear; remove with: waterbear shortcut off)\nbind = SUPER ALT, space, exec, %s\n# <<< waterbear <<<\n' "$cmd" >> "$HOME/.config/hypr/hyprland.conf"
+        ok "Super + Alt + Space added to ~/.config/hypr/hyprland.conf"
+    else
+        info "No Hyprland config found, so the shortcut gets set up when you install the Waterbear desktop."
+        return 0
+    fi
+    [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] && hyprctl reload > /dev/null 2>&1 || true
+}
+
+cmd_shortcut() {  # waterbear shortcut on|off
+    state_load
+    case "${1:-}" in
+        on)  MENU_KEY=yes ;;
+        off) MENU_KEY=no ;;
+        *)   die "Use: waterbear shortcut on|off" ;;
+    esac
+    state_save; shortcut_apply
+    ok "Super + Alt + Space: $([[ $MENU_KEY == yes ]] && echo on || echo off)"
+}
+
+# Run by install.sh once the tool is in place: the one question, then how to open Waterbear
+cmd_installed() {
+    state_load
+    local ask=true a
+    for a in "$@"; do
+        case "$a" in --yes|-y) ask=false ;; --no-shortcut) ask=false; MENU_KEY=no ;; esac
+    done
+    $INTERACTIVE || ask=false
+    scheme_load "$SCHEME"; ui_colors
+    step "Waterbear $WB_VERSION is installed"
+    if $ask; then
+        if ui_confirm "Add the Super + Alt + Space shortcut to open Waterbear?" y; then MENU_KEY=yes; else MENU_KEY=no; fi
+    fi
+    state_save
+    shortcut_apply
+    echo
+    info "Open Waterbear any time:"
+    info "  • type  waterbear  in any terminal (or a TTY)"
+    if [[ "$MENU_KEY" == yes ]]; then
+        if [[ "$DESKTOP" == yes || -f "$HOME/.config/hypr/hyprland.conf" || -f "$HOME/.config/hypr/hyprland.lua" ]]; then
+            info "  • or press  Super + Alt + Space"
+        else
+            info "  • or press  Super + Alt + Space  (once the Waterbear desktop is installed)"
+        fi
+    fi
+    if [[ "$DESKTOP" != yes ]]; then
+        echo
+        info "Nothing on your desktop was changed. In the menu you can install apps right away,"
+        info "and get the whole Waterbear desktop (Hyprland, bar, themes) from: Desktop → Install."
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Installing the desktop
 # ---------------------------------------------------------------------------
 BASE_PKGS=(
-    git base-devel nano less jq xdg-utils libnotify fastfetch gum
-    hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent qt5-wayland qt6-wayland
-    gnome-themes-extra dconf hyprlock hypridle hyprsunset hyprshutdown
+    git base-devel nano less jq xdg-utils libnotify fastfetch gum fzf btop
+    hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk hyprpolkitagent qt5-wayland qt6-wayland qt6ct
+    gnome-themes-extra papirus-icon-theme dconf hyprlock hypridle hyprsunset hyprshutdown
     kitty firefox thunar rofi rofi-calc rofi-emoji wtype
     swaync cliphist wl-clipboard grim slurp swappy brightnessctl playerctl pipewire-jack
     ttf-jetbrains-mono-nerd noto-fonts noto-fonts-emoji
@@ -234,77 +440,35 @@ BASE_PKGS=(
 setup_summary() {
     local fw="off"; [[ "$FIREWALL" == yes ]] && fw="on (open: ${FW_PORTS:-nothing})"
     printf '%s\n' \
-        "  Looks       $SCHEME${ACCENT:+ ($ACCENT)} · $WALLPAPER background · $BAR bar · $PROMPT prompt · $USER_SHELL shell" \
-        "  Keybinds    $KEYBINDS" \
-        "  Apps        ${APPS:-none}" \
+        "  Looks       $SCHEME${ACCENT:+ ($ACCENT)} · $([[ $DARK_MODE == yes ]] && echo dark || echo light) mode · $WALLPAPER background · $BAR bar · $PROMPT prompt · $USER_SHELL shell" \
+        "  Keybinds    $KEYBINDS$([[ $MENU_KEY == yes ]] && echo " · Super+Alt+Space opens this menu")" \
         "  System      snapper: $SNAPPER (weekly: $SNAPPER_WEEKLY) · firewall: $fw · yay: $YAY" \
         "  Screensaver $SAVER · $IDLE_SAVER/$IDLE_LOCK/$IDLE_OFF/$IDLE_SUSPEND min" \
         "  Updates     auto-update: $AUTO_UPDATE" \
-        "  Login       $([[ $LOGIN == screen ]] && echo "hyprlock login screen" || echo "text login on tty1")" \
-        "  Old configs $OLD_CONFIGS"
+        "  Login       $([[ $LOGIN == screen ]] && echo "hyprlock login screen" || echo "text login on tty1")"
 }
 
-# Labels shared by the setup wizard and the menu, so both list things the same way
-lbl_theme()  { echo "Theme        $SCHEME${ACCENT:+ ($ACCENT)}"; }
-lbl_wall()   { echo "Background   $WALLPAPER · lock screen: $LOCK_BG"; }
-lbl_bar()    { echo "Status bar   $BAR"; }
-lbl_prompt() { echo "Prompt       $PROMPT"; }
-lbl_shell()  { echo "Shell        $USER_SHELL"; }
-lbl_keys()   { echo "Keybinds     $KEYBINDS set · switch to the other set"; }
-lbl_idle()   { echo "Screensaver  $SAVER · lock after ${IDLE_LOCK} min"; }
-lbl_fw()     { echo "Firewall     $([[ $FIREWALL == yes ]] && echo "on · open: ${FW_PORTS:-nothing}" || echo off)"; }
-lbl_login()  { echo "Login        $([[ $LOGIN == screen ]] && echo hyprlock || echo "text on tty1")"; }
-lbl_auto()   { echo "Auto-update  $AUTO_UPDATE"; }
-lbl_system() { echo "System       snapper: $SNAPPER · weekly snapshot: $SNAPPER_WEEKLY · yay: $YAY"; }
+old_configs_found() {
+    local d; for d in "${MANAGED_DIRS[@]}" "${MANAGED_FILES[@]}"; do [[ -e "$HOME/.config/$d" ]] && return 0; done
+    return 1
+}
 
-setup_wizard() {
-    local last=install
-    while true; do
-        scheme_load "$SCHEME"; ui_colors
-        ui_title "Setup"
-        info "Pick anything to change it, then Install. You can change all of it later"
-        info "in the Waterbear menu: Super + Alt + Space"; echo
-        local tab
-        tab=$(ui_pick "What do you want to set up?" "$last" \
-            "$(lbl_theme)::theme" \
-            "$(lbl_wall)::wall" \
-            "$(lbl_bar)::bar" \
-            "$(lbl_prompt)::prompt" \
-            "$(lbl_shell)::shell" \
-            "$(lbl_keys)::keys" \
-            "Apps         ${APPS:-none}::apps" \
-            "$(lbl_idle)::idle" \
-            "$(lbl_fw)::fw" \
-            "$(lbl_login)::login" \
-            "$(lbl_system)::system" \
-            "$(lbl_auto)::auto" \
-            "Old configs  $OLD_CONFIGS existing hypr/kitty/rofi/waybar configs::old" \
-            "Install      ▶ start::install" \
-            "Quit::quit") || { ui_confirm "Quit setup?" n && exit 0; continue; }
-        last="$tab"
-        local v
-        case "$tab" in
-            theme)  ui_steps st_scheme st_accent || true ;;
-            wall)   pick_wallpaper || true ;;
-            bar)    v=$(pick_bar) && BAR="$v" || true ;;
-            prompt) v=$(pick_prompt) && PROMPT="$v" || true ;;
-            shell)  v=$(pick_shell) && USER_SHELL="$v" || true ;;
-            keys)   v=$(pick_keybinds) && KEYBINDS="$v" || true ;;
-            apps)   v=$(pick_apps) && APPS="$v" || true ;;
-            idle)   pick_idle || true ;;
-            fw)     pick_firewall || true ;;
-            login)  v=$(ui_pick "Login" "$LOGIN" \
-                        "Text login on tty1 (type username + password, Hyprland starts)::text" \
-                        "hyprlock as the login screen (single user: boots locked, same look as your lock screen)::screen") && LOGIN="$v" || true ;;
-            system) ui_steps st_sys_checks || true ;;
-            auto)   v=$(pick_autoupdate) && AUTO_UPDATE="$v" || true ;;
-            old)    v=$(ui_pick "Existing hypr/kitty/rofi/waybar configs" "$OLD_CONFIGS" \
-                        "Back them up to ~/.config/waterbear-backups (keeps the newest 3)::backup" \
-                        "Delete them::delete") && OLD_CONFIGS="$v" || true ;;
-            install) ui_confirm "Install Waterbear with these settings?" y && return 0 ;;
-            quit)   exit 0 ;;
-        esac
-    done
+# Desktop → Install: what will happen, what to do with your current configs, then go
+desktop_install() {
+    ui_title "Install the desktop"
+    info "This installs Hyprland and the Waterbear desktop with these settings"
+    info "(change any of them first in Look & feel, Keyboard and System; all of it can change later):"; echo
+    setup_summary; echo
+    if old_configs_found; then
+        local o
+        o=$(ui_pick "You already have configs here (hypr, kitty, waybar, gtk...). What should happen to them?" save \
+            "Save them as a theme called old_theme (switch back to them any time in Theme)::save" \
+            "Delete them::delete") || return 0
+        OLD_CONFIGS="$o"
+    fi
+    ui_confirm "Install the Waterbear desktop now?" y || return 0
+    setup_run
+    ui_pause
 }
 
 setup_run() {
@@ -322,24 +486,23 @@ setup_run() {
     pac "${pkgs[@]}"
 
     step "Dark mode for Firefox"
-    sudo mkdir -p /etc/firefox/policies
-    printf '%s\n' '{ "policies": { "Preferences": {' \
-        '  "layout.css.prefers-color-scheme.content-override": { "Value": 0, "Status": "default" }' \
-        '} } }' | sudo tee /etc/firefox/policies/policies.json > /dev/null
+    firefox_dark_apply
 
     if [[ "$YAY" == yes ]]; then install_yay; fi
 
     step "Writing configs ($SCHEME)"
+    [[ "$SCHEME" == old_theme ]] && SCHEME=abyss
     prepare_old_configs "$OLD_CONFIGS"
-    local want="$APPS" id
-    APPS=""
-    [[ " $want " == *" clock "* ]] && add_app clock
+    DESKTOP=yes
+    add_app btop; add_app clock
     state_save
     apply_all
+    shortcut_apply
 
-    for id in $want; do
+    local id
+    for id in ${SETUP_APPS:-}; do
         case "$id" in steam|clock) continue ;; esac
-        install_app "$id" || true
+        has_app "$id" || install_app "$id" || true
     done
     state_save
     apply_all > /dev/null   # again, so app themes (btop, Neovim) and shell aliases are written
@@ -347,18 +510,18 @@ setup_run() {
     [[ "$SNAPPER" == yes ]] && snapper_setup
     login_apply
     fw_apply
-    if [[ " $want " == *" steam "* ]]; then install_app steam || true; fi
+    if [[ " ${SETUP_APPS:-} " == *" steam "* ]]; then install_app steam || true; fi
     state_save
     if [[ "$SNAPPER" == yes ]]; then snapshot_now "waterbear-setup-$(date +%F)" || true; fi
 
-    step "Done: Waterbear $WB_VERSION is installed"
+    step "Done: the Waterbear desktop is installed"
     info "Waterbear menu: Super + Alt + Space (or type: waterbear)"
     info "  themes · background · bar · apps · every keyboard shortcut · snapshots · update"
-    if [[ "$KEYBINDS" == waterbear ]]; then
-        info "Keybind cheat sheet: Super + H  (search it: Super + Shift + K)"
-    else
-        info "Keybind cheat sheet: Super + Alt + Space → Shortcuts"
-    fi
+    case "$KEYBINDS" in
+        waterbear) info "Keybind cheat sheet: Super + H  (search it: Super + Shift + K)" ;;
+        omarchy)   info "Keybind cheat sheet: Super + K" ;;
+        *)         info "Keybind cheat sheet: Super + Alt + Space → Keyboard → Shortcut list" ;;
+    esac
     if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
         info "You're in Hyprland already; most changes are live. Log out and back in for the rest."
     elif [[ "$LOGIN" == screen ]]; then
@@ -370,8 +533,8 @@ setup_run() {
 
 cmd_setup() {
     state_load
-    OLD_CONFIGS=backup
     local steam=false
+    SETUP_APPS=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --yes|-y)       INTERACTIVE=false ;;
@@ -381,7 +544,9 @@ cmd_setup() {
             --bar)          BAR="$2"; shift ;;
             --prompt)       PROMPT="$2"; shift ;;
             --shell)        USER_SHELL="$2"; shift ;;
-            --apps)         APPS="$2"; shift ;;
+            --keybinds)     KEYBINDS="$2"; shift ;;
+            --light)        DARK_MODE=no ;;
+            --apps)         SETUP_APPS="$2"; shift ;;
             --steam)        steam=true ;;
             --yay)          YAY=yes ;;
             --login-screen) LOGIN=screen ;;
@@ -390,82 +555,226 @@ cmd_setup() {
             --no-firewall)  FIREWALL=no ;;
             --delete-old)   OLD_CONFIGS=delete ;;
             --auto-update)  AUTO_UPDATE="$2"; shift ;;
+            --no-shortcut)  MENU_KEY=no ;;
             *) die "Unknown option: $1 (see: waterbear help)" ;;
         esac
         shift
     done
-    $steam && add_app steam
+    $steam && SETUP_APPS+=" steam"
     on_arch || die "Waterbear is for Arch Linux."
     scheme_load "$SCHEME"
     [[ "$BAR" =~ ^(dashboard|islands|terminal|none)$ ]] || die "Unknown bar '$BAR'."
-    [[ "$WALLPAPER" =~ ^(solid|grid|orbit|logo|cmatrix|cava)$ ]] || die "Unknown wallpaper '$WALLPAPER'."
+    [[ "$WALLPAPER" =~ ^(solid|picture|grid|orbit|logo|cmatrix|cava)$ ]] || die "Unknown wallpaper '$WALLPAPER'."
     [[ "$PROMPT" =~ ^(minimal|info|hacker|off)$ ]] || die "Unknown prompt '$PROMPT'."
     [[ "$USER_SHELL" =~ ^(bash|fish)$ ]] || die "Unknown shell '$USER_SHELL' (bash or fish)."
+    [[ "$KEYBINDS" =~ ^(waterbear|omarchy|default)$ ]] || die "Unknown keybinds '$KEYBINDS' (waterbear, omarchy or default)."
     [[ "$AUTO_UPDATE" =~ ^(off|ask|auto)$ ]] || die "Unknown auto-update '$AUTO_UPDATE' (off, ask or auto)."
-    if $INTERACTIVE; then setup_wizard; else setup_summary; fi
-    setup_run
+    if $INTERACTIVE; then
+        scheme_load "$SCHEME"; ui_colors
+        desktop_install
+    else
+        setup_summary
+        setup_run
+    fi
 }
 
 # ---------------------------------------------------------------------------
-# The menu (Super+Alt+Space / `waterbear`)
+# The menu (Super+Alt+Space / `waterbear`). ↑↓ move · → open · ← back
 # ---------------------------------------------------------------------------
-cmd_menu() {
-    state_load
-    $INTERACTIVE || die "The menu needs gum: sudo pacman -S gum"
+lbl_theme()  { echo "Theme        $SCHEME${ACCENT:+ ($ACCENT)}"; }
+lbl_dark()   { echo "Dark mode    $([[ $DARK_MODE == yes ]] && echo on || echo "off (light)")"; }
+lbl_wall()   { echo "Background   $WALLPAPER$([[ $WALLPAPER == picture && -n $WALL_IMAGE ]] && echo " ($(basename "$WALL_IMAGE"))") · lock screen: $LOCK_BG"; }
+lbl_bar()    { echo "Status bar   $BAR"; }
+lbl_prompt() { echo "Prompt       $PROMPT"; }
+lbl_shell()  { echo "Shell        $USER_SHELL"; }
+lbl_idle()   { echo "Screensaver  $SAVER · lock after ${IDLE_LOCK} min"; }
+lbl_fw()     { echo "Firewall     $([[ $FIREWALL == yes ]] && echo "on · open: ${FW_PORTS:-nothing}" || echo off)"; }
+lbl_login()  { echo "Login        $([[ $LOGIN == screen ]] && echo hyprlock || echo "text on tty1")"; }
+lbl_auto()   { echo "Auto-update  $AUTO_UPDATE · checks GitHub at login"; }
+lbl_system() { echo "Snapper/yay  snapper: $SNAPPER · weekly snapshot: $SNAPPER_WEEKLY · yay: $YAY"; }
+
+menu_desktop() {
+    local last=install
+    while true; do
+        ui_title "Desktop"
+        local c
+        if [[ "$DESKTOP" != yes ]]; then
+            info "Not installed yet. Installing adds Hyprland, a status bar, kitty, Rofi, Thunar,"
+            info "lock screen, notifications and themes, with the settings from the other menus."; echo
+            c=$(ui_pick "Desktop" "$last" \
+                "Install the Waterbear desktop  ▶::install" \
+                "$(lbl_login)::login") || return 0
+        else
+            c=$(ui_pick "Desktop  (installed)" "$last" \
+                "Re-apply all configs  rewrite them from your settings::apply" \
+                "$(lbl_login)::login" \
+                "Install again  runs the desktop install with your settings::install") || return 0
+        fi
+        last="$c"
+        case "$c" in
+            install) desktop_install ;;
+            apply)   apply_all; ok "Configs refreshed."; ui_pause ;;
+            login)   local l; l=$(ui_pick "Login" "$LOGIN" \
+                         "Text login on tty1 (type username + password, Hyprland starts)::text" \
+                         "hyprlock as the login screen (single user: boots locked, same look as your lock screen)::screen") || continue
+                     LOGIN="$l"; state_save
+                     if [[ "$DESKTOP" == yes ]]; then need_sudo; login_apply; else desktop_needed || true; fi
+                     ui_pause ;;
+        esac
+    done
+}
+
+menu_look() {
+    local last=theme
     while true; do
         scheme_load "$SCHEME"; ui_colors
-        ui_title "Menu"
+        ui_title "Look & feel"
         local c
-        c=$(ui_pick "What do you want to do?" theme \
+        c=$(ui_pick "Look & feel" "$last" \
             "$(lbl_theme)::theme" \
+            "$(lbl_dark)::dark" \
             "$(lbl_wall)::wall" \
             "$(lbl_bar)::bar" \
             "$(lbl_prompt)::prompt" \
-            "$(lbl_shell)::shell" \
-            "Shortcuts    every keyboard shortcut and what it does::shortcuts" \
-            "$(lbl_keys)::keys" \
-            "Apps         install or remove::apps" \
-            "$(lbl_idle)::idle" \
+            "$(lbl_shell)::shell") || return 0
+        last="$c"
+        case "$c" in
+            theme)  menu_theme ;;
+            dark)   local d; d=$(ui_pick "Dark mode  (GTK and Qt apps, Firefox, file pickers)" "$DARK_MODE" \
+                        "On   dark apps::yes" "Off  light apps::no") || continue
+                    dark_set "$d"; ui_pause ;;
+            wall)   cmd_background; ui_pause ;;
+            bar)    local b; b=$(pick_bar) || continue; BAR="$b"
+                    [[ "$BAR" != none && "$DESKTOP" == yes ]] && ! pkg_installed waybar && { need_sudo; pac waybar; }
+                    state_save; apply_all; ui_pause ;;
+            prompt) local pr; pr=$(pick_prompt) || continue; PROMPT="$pr"
+                    [[ "$PROMPT" != off && "$DESKTOP" == yes ]] && ! pkg_installed starship && { need_sudo; pac starship; }
+                    state_save; apply_all; [[ "$DESKTOP" == yes ]] && info "Open a new terminal to see it."; ui_pause ;;
+            shell)  local sh; sh=$(pick_shell) || continue; USER_SHELL="$sh"
+                    [[ "$USER_SHELL" == fish && "$DESKTOP" == yes ]] && ! pkg_installed fish && { need_sudo; pac fish; }
+                    state_save; apply_all; [[ "$DESKTOP" == yes ]] && info "Open a new terminal to see it."; ui_pause ;;
+        esac
+    done
+}
+
+menu_install() {
+    local last="${APP_SECTIONS[0]}"
+    while true; do
+        ui_title "Install"
+        apps_reconcile
+        local opts=("-- Apps (✓ = already installed)") sec ids id n have
+        for sec in "${APP_SECTIONS[@]}"; do
+            n=0; have=0
+            while IFS= read -r id; do ((n++)) || true; app_is_installed "$id" && { ((have++)) || true; }; done < <(section_ids "$sec")
+            opts+=("$(printf '%-17s' "$sec") $have of $n installed::$sec")
+        done
+        opts+=("-- More"
+               "Web apps           websites in their own window (you add them)::@webapps"
+               "Search packages    anything in the official Arch repos::@search"
+               "Search the AUR     official repos + AUR (installs yay if needed)::@aur"
+               "Remove packages    pick from what you installed::@remove")
+        local c
+        c=$(ui_pick "Install" "$last" "${opts[@]}") || { state_save; return 0; }
+        last="$c"
+        case "$c" in
+            @webapps) webapps_menu ;;
+            @search)  pkg_search repo ;;
+            @aur)     pkg_search aur ;;
+            @remove)  pkg_remove ;;
+            *)        ui_title "Install · $c"
+                      if apps_section "$c"; then state_save; apply_quiet > /dev/null; ui_pause; fi ;;
+        esac
+    done
+}
+
+menu_keyboard() {
+    local last=keys
+    while true; do
+        ui_title "Keyboard"
+        local c
+        c=$(ui_pick "Keyboard" "$last" \
+            "Keybind set    $KEYBINDS::keys" \
+            "Shortcut list  every shortcut in the $KEYBINDS set::list" \
+            "Menu shortcut  Super+Alt+Space opens this menu: $([[ $MENU_KEY == yes ]] && echo on || echo off)::menukey") || return 0
+        last="$c"
+        case "$c" in
+            keys)    local kb; kb=$(pick_keybinds) || continue; KEYBINDS="$kb"; state_save; apply_all
+                     [[ "$DESKTOP" == yes ]] && ok "Shortcuts switched. See them all: Keyboard → Shortcut list."; ui_pause ;;
+            list)    show_shortcuts ;;
+            menukey) local m; m=$(ui_pick "Super + Alt + Space opens the Waterbear menu" "$MENU_KEY" "On::yes" "Off::no") || continue
+                     MENU_KEY="$m"; state_save; shortcut_apply; ui_pause ;;
+        esac
+    done
+}
+
+menu_system() {
+    local last=snaps
+    while true; do
+        ui_title "System"
+        local c
+        c=$(ui_pick "System" "$last" \
             "Snapshots    list · take one · restore::snaps" \
             "$(lbl_fw)::fw" \
-            "$(lbl_login)::login" \
-            "$(lbl_system)::system" \
+            "$(lbl_idle)::idle" \
             "$(lbl_monitors)::monitors" \
-            "Update       system + Waterbear (you have $WB_VERSION)::update" \
-            "$(lbl_auto) · checks GitHub at login::auto" \
-            "Quit::quit") || exit 0
+            "$(lbl_system)::system") || return 0
+        last="$c"
         case "$c" in
-            theme)  cmd_theme ;;
-            wall)   pick_wallpaper || continue
-                    local need; need=$(wallpaper_pkgs)
-                    if [[ -n "$need" ]]; then local p; for p in $need; do pkg_installed "$p" || { need_sudo; pac $need; break; }; done; fi
-                    state_save; apply_all ;;
-            bar)    local b; b=$(pick_bar) || continue; BAR="$b"
-                    [[ "$BAR" != none ]] && ! pkg_installed waybar && { need_sudo; pac waybar; }
-                    state_save; apply_all ;;
-            prompt) local pr; pr=$(pick_prompt) || continue; PROMPT="$pr"
-                    [[ "$PROMPT" != off ]] && ! pkg_installed starship && { need_sudo; pac starship; }
-                    state_save; apply_all; info "Open a new terminal to see it." ; ui_pause ;;
-            shell)  local sh; sh=$(pick_shell) || continue; USER_SHELL="$sh"
-                    [[ "$USER_SHELL" == fish ]] && ! pkg_installed fish && { need_sudo; pac fish; }
-                    state_save; apply_all; info "Open a new terminal to see it." ; ui_pause ;;
-            shortcuts) show_shortcuts ;;
-            keys)   local kb; kb=$(pick_keybinds) || continue; KEYBINDS="$kb"; state_save; apply_all
-                    ok "Shortcuts switched. See them all: Shortcuts, in this menu."; ui_pause ;;
-            apps)   local sel; sel=$(pick_apps) || continue; need_sudo; apps_sync "$sel"; state_save; apply_all; ui_pause ;;
-            idle)   pick_idle || continue; state_save; apply_all; ok "Saved."; ui_pause ;;
-            snaps)  snapshots_menu ;;
-            fw)     pick_firewall || continue; need_sudo; fw_apply; state_save; ui_pause ;;
-            login)  local l; l=$(ui_pick "Login" "$LOGIN" \
-                        "Text login on tty1::text" "hyprlock as the login screen::screen") || continue
-                    LOGIN="$l"; need_sudo; login_apply; state_save; ui_pause ;;
-            system) cmd_system ;;
+            snaps)    snapshots_menu ;;
+            fw)       pick_firewall || continue; need_sudo; fw_apply; state_save; ui_pause ;;
+            idle)     pick_idle || continue; state_save; apply_all; ok "Saved."; ui_pause ;;
             monitors) cmd_monitors ;;
+            system)   cmd_system ;;
+        esac
+    done
+}
+
+menu_update() {
+    local last=update
+    while true; do
+        ui_title "Update"
+        local c
+        c=$(ui_pick "Update" "$last" \
+            "Update now   snapshot · system packages · Waterbear (you have $WB_VERSION)::update" \
+            "$(lbl_auto)::auto") || return 0
+        last="$c"
+        case "$c" in
             update) waterbear_update || true; ui_pause
                     exec "$WB_HOME/waterbear" menu ;;   # reopen with the (possibly new) version
             auto)   local au; au=$(pick_autoupdate) || continue; AUTO_UPDATE="$au"; state_save
                     ok "Auto-update: $AUTO_UPDATE (next check: your next login)"; ui_pause ;;
-            quit)   exit 0 ;;
+        esac
+    done
+}
+
+cmd_menu() {
+    state_load
+    $INTERACTIVE || die "The menu needs gum and a terminal: sudo pacman -S gum"
+    apps_reconcile; state_save
+    local last=look
+    [[ "$DESKTOP" != yes ]] && last=desktop
+    while true; do
+        scheme_load "$SCHEME"; ui_colors
+        ui_title "Menu"
+        local d="installed"; [[ "$DESKTOP" != yes ]] && d="not installed yet → install it here"
+        local c
+        c=$(ui_pick "What do you want to do?" "$last" \
+            "Desktop       $d::desktop" \
+            "Look & feel   theme · dark mode · background · bar · prompt · shell::look" \
+            "Install       apps by category · web apps · search any package::install" \
+            "Keyboard      $KEYBINDS shortcuts · shortcut list · menu shortcut::keyboard" \
+            "System        snapshots · firewall · screensaver · monitors · snapper/yay::system" \
+            "Update        system + Waterbear (you have $WB_VERSION)::update" \
+            "Quit::quit") || exit 0
+        last="$c"
+        case "$c" in
+            desktop)  menu_desktop ;;
+            look)     menu_look ;;
+            install)  menu_install ;;
+            keyboard) menu_keyboard ;;
+            system)   menu_system ;;
+            update)   menu_update ;;
+            quit)     exit 0 ;;
         esac
     done
 }
@@ -474,7 +783,7 @@ cmd_system() {
     local cur sel
     cur="$( [[ $SNAPPER == yes ]] && echo snapper; [[ $SNAPPER_WEEKLY == yes ]] && echo weekly; [[ $YAY == yes ]] && echo yay )"
     sel=$(ui_checks "System" "$cur" \
-        "Snapper snapshots::snapper" "Weekly automatic snapshot (needs Snapper)::weekly" "yay (AUR helper)::yay") || return 0
+        "Snapper snapshots (btrfs: roll back from the boot menu)::snapper" "Weekly automatic snapshot (needs Snapper)::weekly" "yay (AUR helper)::yay") || return 0
     need_sudo
     if [[ " $sel " == *" snapper "* && "$SNAPPER" != yes ]]; then SNAPPER=yes; snapper_setup; fi
     if [[ " $sel " != *" snapper "* ]]; then SNAPPER=no; fi
@@ -485,32 +794,23 @@ cmd_system() {
     state_save; ui_pause
 }
 
-cmd_theme() {
-    state_load
-    local old="$SCHEME"
-    if [[ -n "${1:-}" ]]; then
-        SCHEME="$1"; ACCENT="${2:-}"
-        [[ -z "$ACCENT" && "$SCHEME" == "$old" ]] && ACCENT=$(. "$WB_STATE" 2>/dev/null; echo "${ACCENT:-}")
-    else
-        ui_steps st_scheme st_accent || return 0
-    fi
-    if [[ -n "$ACCENT" && -z "$(scheme_accents "$SCHEME")" ]]; then ACCENT=""; fi
-    scheme_load "$SCHEME"
-    state_save
-    apply_all
-    ok "Theme: $P_NAME (new terminals pick it up; Neovim on next start)"
-}
-
 case "${1:-menu}" in
     menu)     cmd_menu ;;
     setup)    shift; cmd_setup "$@" ;;
+    installed) shift; cmd_installed "$@" ;;
     theme)    shift; cmd_theme "${1:-}" "${2:-}" ;;
-    bar)      state_load; BAR="${2:-$(pick_bar)}"; state_save; apply_all; ok "Bar: $BAR" ;;
+    background|wallpaper) state_load; scheme_load "$SCHEME"; ui_colors; ui_title "Background"; cmd_background ;;
+    dark)     state_load
+              case "${2:-}" in on) v=yes ;; off) v=no ;; "") [[ "$DARK_MODE" == yes ]] && v=no || v=yes ;; *) die "Use: waterbear dark [on|off]" ;; esac
+              scheme_load "$SCHEME"; dark_set "$v" ;;
+    bar)      state_load; BAR="${2:-$(pick_bar)}"
+              [[ "$BAR" =~ ^(dashboard|islands|terminal|none)$ ]] || die "Unknown bar '$BAR'."
+              state_save; apply_all; ok "Bar: $BAR" ;;
     shell)    state_load; v="${2:-$(pick_shell)}" || exit 0
               [[ "$v" =~ ^(bash|fish)$ ]] || die "Unknown shell '$v' (bash or fish)."
-              USER_SHELL="$v"; [[ "$v" == fish ]] && ! pkg_installed fish && { need_sudo; pac fish; }
-              state_save; apply_all; ok "Shell: $USER_SHELL (open a new terminal to see it)" ;;
-    apps)     state_load; sel=$(pick_apps) && { need_sudo; apps_sync "$sel"; state_save; apply_all; } ;;
+              USER_SHELL="$v"; [[ "$v" == fish && "$DESKTOP" == yes ]] && ! pkg_installed fish && { need_sudo; pac fish; }
+              state_save; apply_all; ok "Shell: $USER_SHELL" ;;
+    apps)     state_load; $INTERACTIVE || die "This needs gum and a terminal."; scheme_load "$SCHEME"; ui_colors; menu_install ;;
     update)   state_load; waterbear_update ;;
     autoupdate) if [[ -n "${2:-}" ]]; then
                     state_load; [[ "$2" =~ ^(off|ask|auto)$ ]] || die "Unknown auto-update '$2' (off, ask or auto)."
@@ -518,7 +818,9 @@ case "${1:-menu}" in
                 else cmd_autoupdate; fi ;;
     monitors) cmd_monitors ;;
     snapshot) state_load; snapshot_now "${2:-manual-$(date +%F)}" ;;
-    apply)    state_load; apply_all; ok "Configs refreshed." ;;
+    apply)    state_load; apply_all; if [[ "$DESKTOP" == yes ]]; then ok "Configs refreshed."; fi ;;
+    shortcut) cmd_shortcut "${2:-}" ;;
+    webapp-open) [[ -n "${2:-}" ]] || die "Use: waterbear webapp-open URL"; webapp_open "$2" ;;
     version|-v|--version) echo "Waterbear $WB_VERSION" ;;
     shortcuts) state_load; show_shortcuts ;;
     help|-h|--help) awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$WB_SELF" ;;

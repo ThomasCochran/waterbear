@@ -1,0 +1,46 @@
+/* Every GTK 3 app in the theme's colors (@@SCHEME_NAME@@), on top of @@GTK_THEME@@ */
+@define-color theme_bg_color #@@BG@@;
+@define-color theme_fg_color #@@FG@@;
+@define-color theme_base_color #@@BG@@;
+@define-color theme_text_color #@@FG@@;
+@define-color theme_selected_bg_color #@@A@@;
+@define-color theme_selected_fg_color #@@BG@@;
+@define-color insensitive_fg_color #@@DIM@@;
+@define-color borders #@@C8@@;
+@define-color accent_color #@@A@@;
+@define-color accent_bg_color #@@A@@;
+
+window, .background, dialog, messagedialog, assistant { background-color: #@@BG@@; color: #@@FG@@; }
+.view, iconview, treeview.view, textview text, list, row { background-color: #@@BG@@; color: #@@FG@@; }
+.view:selected, iconview:selected, treeview.view:selected, row:selected, list row:selected,
+flowboxchild:selected, .view:selected:focus { background-color: #@@A@@; color: #@@BG@@; }
+row:hover:not(:selected) { background-color: alpha(#@@A@@, 0.12); }
+headerbar, .titlebar, menubar, toolbar, .toolbar, actionbar, searchbar, .sidebar, placessidebar, statusbar {
+    background-color: #@@C0@@; background-image: none; color: #@@FG@@; border-color: #@@C8@@; box-shadow: none;
+}
+headerbar:backdrop, .titlebar:backdrop { background-color: #@@BG@@; }
+menu, .menu, .context-menu, popover, popover.background, tooltip, tooltip.background {
+    background-color: #@@C0@@; color: #@@FG@@; border-color: #@@C8@@;
+}
+menu menuitem:hover, menubar > menuitem:hover, .menu menuitem:hover, modelbutton:hover { background-color: #@@A@@; color: #@@BG@@; }
+button { background-image: none; background-color: #@@C0@@; color: #@@FG@@; border-color: #@@C8@@; box-shadow: none; text-shadow: none; }
+button:hover { background-color: alpha(#@@A@@, 0.18); }
+button:checked, button:active, button.suggested-action { background-color: #@@A@@; color: #@@BG@@; border-color: #@@A@@; }
+button.destructive-action { background-color: #@@C1@@; color: #@@BG@@; }
+button image, headerbar image, toolbar image, .sidebar image, placessidebar image { color: #@@A@@; }
+button:checked image, button:active image { color: #@@BG@@; }
+entry, spinbutton, combobox entry { background-color: #@@BG@@; background-image: none; color: #@@FG@@; border-color: #@@C8@@; caret-color: #@@B@@; }
+entry:focus, spinbutton:focus { border-color: #@@A@@; box-shadow: inset 0 0 0 1px #@@A@@; }
+selection, *:selected selection, entry selection, label selection { background-color: #@@A@@; color: #@@BG@@; }
+notebook > header { background-color: #@@C0@@; border-color: #@@C8@@; }
+notebook > header tab { color: #@@DIM@@; }
+notebook > header tab:checked { color: #@@B@@; box-shadow: inset 0 -3px #@@A@@; }
+notebook > stack { background-color: #@@BG@@; }
+check:checked, radio:checked, switch:checked { background-color: #@@A@@; background-image: none; border-color: #@@A@@; color: #@@BG@@; }
+switch slider { background-color: #@@FG@@; background-image: none; }
+scale highlight, progressbar progress, levelbar block.filled { background-color: #@@A@@; border-color: #@@A@@; }
+scrollbar { background-color: transparent; border-color: transparent; }
+scrollbar slider { background-color: #@@C8@@; }
+scrollbar slider:hover, scrollbar slider:active { background-color: #@@A@@; }
+separator { background-color: #@@C8@@; }
+*:link, link { color: #@@B@@; }

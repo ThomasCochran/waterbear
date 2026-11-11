@@ -1,39 +1,31 @@
 # Waterbear
-*Warning: about 90% of this was vibe-coded by Claude, and I’ve barely tested it.*
+*Warning: about 95% of this was vibe-coded by Claude, and I’ve barely tested it.*
 *In a future update I will make it more human, clean, and personalized, but for now I just want it to work.*
 
-**An Arch + Hyprland setup.** Run one installer on a fresh Arch install and get a themed,
-keyboard-driven desktop with switchable color schemes, snapshots, a status bar of your choice,
-and only the apps you pick.
+**An Arch + Hyprland setup, Omarchy-style, for the Arch you already have.** No new OS: if you run Arch,
+you can have Waterbear. Install the tool, open its menu, and from there get a themed, keyboard-driven
+desktop with switchable color schemes (or themes made from your own wallpaper), snapshots, a status bar
+of your choice, and only the apps you pick.
 
 Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to kill.
 
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 1.1.0 |
+| **Version** | 1.2.0 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |
 
 ## Requirements
 
-Before you install, you need:
-
-- **Arch Linux**, freshly installed (other distros aren't supported; the installer checks for `/etc/arch-release`)
-- Installed with archinstall's **Minimal** profile, using:
-  - **btrfs** as the filesystem (needed for Snapper snapshots)
-  - **GRUB** as the bootloader (needed for snapshots in the boot menu)
-  - **NetworkManager** for networking
+- **Arch Linux** (or an Arch-based distro; the installer checks for `/etc/arch-release`)
 - A **normal user account with sudo** (don't run the installer as root)
-- An **internet connection** (packages are downloaded during setup)
-- **git**, to clone the repo (`sudo pacman -S git`). Not needed if you use the single-file `Installer.sh`
-
+- An **internet connection**
+- For the full desktop: nothing more. For snapshots, **btrfs** (+ **GRUB** to boot into them); without
+  btrfs, Snapper is skipped and everything else works
 
 ## Install
-
-On a fresh Arch install (archinstall → **Minimal** profile, **btrfs**, **GRUB**, **NetworkManager**),
-logged in as your normal user:
 
 ```bash
 sudo pacman -S git
@@ -48,40 +40,84 @@ Or use the single-file `Installer.sh` from the releases (no clone needed, works 
 chmod +x Installer.sh && ./Installer.sh
 ```
 
-The setup wizard is laid out like the Waterbear menu: one line per setting (theme, background, bar, prompt, shell,
-keybinds, apps, screensaver, firewall, login, system, old configs) showing what it is set to;
-pick one to change it, then **Install**. Arrow keys move, **x** or **Tab** ticks a checkbox, **Enter** confirms, **Esc** goes back one question.
-`./install.sh --yes` skips the questions and uses the defaults.
-Nothing you pick is final: everything can be changed later in the Waterbear menu (**Super + Alt + Space**).
+The installer **only installs Waterbear itself** (plus `gum`, `git` and `fzf`, which its menus use) and
+the `waterbear` command. Your desktop isn't touched. It asks one question: whether to add the
+**Super + Alt + Space** shortcut that opens the menu (to your own Hyprland config if you have one, or to
+Waterbear's once you install its desktop). Then open the menu:
 
-## After installing
+- type **`waterbear`** in any terminal (or a TTY), or
+- press **Super + Alt + Space**
 
-> **Press `Super + Alt + Space` to open the Waterbear menu.** It's where you change your theme,
-> background, bar, prompt, shell (bash or fish), apps, screensaver, firewall, login and keybind set, arrange your **monitors**
-> (swap left/right, pick which workspaces go on which), take or restore snapshots, update,
-> and see **Shortcuts**: a list of every keyboard shortcut for the keybind set you picked.
-> It works with either keybind set.
+From the menu you can install apps straight away, and the whole Waterbear desktop (Hyprland, bar, kitty,
+Rofi, lock screen, notifications, themes) from **Desktop → Install**. Before it installs, it asks what to
+do with the configs you already have: save them as a theme called **old_theme** (switch back to them any
+time in Look & feel → Theme), or delete them.
+
+`./install.sh --yes` skips the shortcut question. `./install.sh --desktop` also installs the desktop
+right away (add `--yes` for no questions, plus any setup options from `waterbear help`).
+
+## The menu
+
+Arrow keys all the way: **↑ ↓** move, **→** (or Enter) opens / picks, **←** (or Esc) goes back.
+In checklists, **Space**, **x** or **Tab** ticks a box and **→** / Enter is done.
 
 | | |
 |---|---|
-| `Super + Alt + Space` | Waterbear menu (both keybind sets) |
-| `Super + H` | Keybind cheat sheet (Waterbear keybinds; with stock keybinds use the menu → Shortcuts) |
-| `Super + W` | Show / hide the status bar (Waterbear keybinds) |
+| **Desktop** | install the Waterbear desktop · re-apply configs · login style |
+| **Look & feel** | theme · dark mode · background · bar · prompt · shell |
+| **Install** | apps by category (Browsers, Editors, Dev tools, Terminal, Chat, Media, Office, Sharing, Gaming, Extras) · web apps · search any package (official repos, or the AUR) · remove packages |
+| **Keyboard** | keybind set (Waterbear, **Omarchy** or Hyprland stock) · every shortcut · the menu shortcut on/off |
+| **System** | snapshots · firewall · screensaver & lock · monitors · Snapper / yay |
+| **Update** | update now · auto-update |
+
+Apps you already have show **✓ installed** and come pre-ticked, so you're never asked to install
+something twice. Apps that only exist in the AUR (like LocalSend on plain Arch) install yay first if
+you say yes.
+
+### Themes
+
+- **Built-in schemes:** Abyss, Ember, Hearth, Matrix, Nebula, Noir (pick its accent color)
+- **From a picture** (like Aether): pick any image and Waterbear makes a theme in its colors: background,
+  accents and all 16 terminal colors. Then **save it to your themes** under a name, or **just try it**
+  (save it later). It also asks if you want the picture as your background; you can say no
+- **Your own colors:** type a background, text color and two accents; Waterbear works out the rest
+- **old_theme:** the setup you had before Waterbear, if you chose to keep it
+- **Manage your themes:** rename, change colors, delete
+
+Theme and background are separate: changing one never changes the other.
+
+A theme recolors Hyprland, kitty, Rofi, the bar and its tray, notifications (swaync), the lock screen,
+GTK 3 and GTK 4 apps, Qt apps (qt6ct), **folder icons** (Papirus, recolored to your accent), Thunar,
+the Starship prompt, fish, btop and Neovim at once.
+
+**Dark mode** is on by default; turn it off in Look & feel for light GTK / Qt apps and Firefox.
+
+## After installing the desktop
+
+| | |
+|---|---|
+| `Super + Alt + Space` | Waterbear menu (every keybind set) |
+| `Super + H` | Keybind cheat sheet (Waterbear keys; `Super + K` with Omarchy keys) |
+| `Super + W` | Show / hide the status bar (Waterbear keys; `Super + Shift + Space` with Omarchy keys) |
 
 The same things from a terminal (works in a TTY too):
 
 ```bash
 waterbear                 # the menu
-waterbear theme matrix    # switch color scheme
+waterbear theme matrix    # switch color scheme (no name = the theme menu)
+waterbear background      # pick your background (a generated one or your own picture)
+waterbear dark off        # light mode (on / off; no argument switches)
 waterbear bar islands     # dashboard | islands | terminal | none
 waterbear shell fish      # bash | fish: the shell your terminals open
-waterbear apps            # install / remove optional apps
+waterbear apps            # install apps, web apps, search any package
 waterbear monitors        # monitor order (left → right) and which workspaces go on which
 waterbear update          # snapshot → system update → newest Waterbear → refresh configs
 waterbear autoupdate ask  # off | ask | auto: check GitHub for a newer Waterbear at every login
 waterbear snapshot        # take a snapshot now
 waterbear apply           # rewrite all configs from your saved settings
 waterbear shortcuts       # list every keyboard shortcut
+waterbear shortcut off    # turn the Super + Alt + Space shortcut off (or on)
+waterbear setup           # install the desktop from the command line
 waterbear version         # which version you have
 waterbear help
 ```
@@ -89,7 +125,7 @@ waterbear help
 If an update fails, it says so at the end in a red **UPDATE FAILED** box (and a desktop notification)
 with what went wrong and how to fix it. The last update's result is saved in `~/.cache/waterbear/last-update.log`.
 
-**Auto-update** (menu → Auto-update, right under Update) checks GitHub each time you log in:
+**Auto-update** (menu → Update → Auto-update) checks GitHub each time you log in:
 - **ask** (default): if there's a newer Waterbear, a notification offers **Update now**, which runs the full update in a terminal
 - **auto**: installs the new Waterbear by itself and tells you. System packages still need your password, so
   they stay with the manual Update. If the install folder has hand-made changes, it asks instead
@@ -99,22 +135,23 @@ If files in `~/.local/share/waterbear` were changed by hand, the update offers t
 
 ## What's included
 
-- **Hyprland** (0.57+ Lua config) with Waterbear's shortcuts or Hyprland's stock ones
-- **Color schemes:** Abyss, Noir, Matrix, Nebula, Hearth, applied to Hyprland, kitty, rofi, the bar,
-  the Thunar file manager, the lock screen, the Starship prompt, fish's syntax colors, btop and Neovim
-  at once
+- **Hyprland** (0.57+ Lua config) with Waterbear's shortcuts, Omarchy-style ones, or Hyprland's stock ones
+- **Themes:** six built-in schemes, themes made from a picture or your own colors, and your old setup
 - **Shell:** bash or fish in your terminals (fish gets themed highlighting, plus the same prompt, aliases
   and fastfetch). Your login shell stays bash, since that's what starts Hyprland on tty1
-- **Backgrounds:** solid color, Grid horizon, Orbit, the waterbear logo (all drawn in your theme's colors),
+- **Backgrounds:** solid color, your own picture, Grid horizon, Orbit, the waterbear logo (drawn in your theme's colors),
   or live ones: cmatrix rain or cava sound bars running behind your windows (solid on battery by default)
-- **Status bars:** Dashboard, Islands, Terminal, or none
+- **Status bars:** Dashboard, Islands, Terminal (each with a system tray), or none
 - **Lock screen** (hyprlock) and an optional **screensaver** (cmatrix or a big terminal clock)
 - **Snapper** snapshots in the GRUB boot menu, plus an optional weekly automatic snapshot
 - **Firewall** (ufw): incoming blocked except what you allow (SSH, Steam Remote Play, dev servers…)
-- **Optional apps:** Neovim + LazyVim, VS Code, Python, Node.js, Docker, lazygit, btop, power tools,
-  Discord, Obsidian, Spotify, LibreOffice, GIMP, OBS, LocalSend, Steam (+ GPU drivers, Proton-GE,
-  GameMode, MangoHud) and more
-- Dark mode everywhere, clipboard history, screenshots, night light, dropdown terminal
+- **Apps by category:** Firefox, Chromium, Brave, Zen · Neovim + LazyVim, VS Code, Zed, Helix · Python,
+  Node.js, Rust, Go, Docker, lazygit, lazydocker, GitHub CLI · btop, power tools, yazi, tmux · Discord,
+  Signal · Spotify, mpv, GIMP, OBS · LibreOffice, Obsidian · LocalSend, KDE Connect · Steam (+ GPU drivers,
+  Proton-GE, GameMode, MangoHud) · and anything else from the repos or the AUR through package search
+- **Web apps:** add any website as an app with its own window and launcher entry (opens in a
+  Chromium-based browser if you have one, otherwise Firefox)
+- Dark mode (optional), clipboard history, screenshots, night light, dropdown terminal
 
 ## Your own changes
 
@@ -124,11 +161,12 @@ files it never touches:
 - `~/.config/hypr/user.lua`: extra keybinds, any Hyprland setting (loads last, so it wins). For monitor
   order and workspaces use the menu's **Monitors** instead; anything you put here overrides it
 - `~/.config/kitty/user.conf`: terminal settings
-- `~/.config/gtk-3.0/user.css`: your own GTK 3 CSS (loads after Waterbear's Thunar colors)
+- `~/.config/gtk-3.0/user.css` and `~/.config/gtk-4.0/user.css`: your own GTK CSS (loads after Waterbear's colors)
 - `~/.bashrc`: anything outside the `# >>> waterbear >>>` block
 - `~/.config/fish/config.fish`: your fish settings (Waterbear's are in `conf.d/waterbear.fish`, which loads first, so yours win)
 
-Your choices are saved in `~/.config/waterbear/state.conf`.
+Your choices are saved in `~/.config/waterbear/state.conf`, your own themes in `~/.config/waterbear/schemes/`,
+your background pictures in `~/.config/waterbear/wallpapers/`, and old_theme in `~/.config/waterbear/old-theme/`.
 
 ## Your own logo as a background
 
@@ -140,8 +178,9 @@ background color, white becomes its accent, grays land in between. Big PNGs (384
 
 ```
 waterbear            the command (menu, setup, theme, update…)
-install.sh           installs from a clone
-lib/                 core · apply (writes configs) · apps · system (snapper, firewall, login, update) · monitors
+install.sh           installs the waterbear tool from a clone
+lib/                 core · menu (the arrow-key menus) · apply (writes configs) · apps · palette (themes from
+                     pictures / your colors) · system (snapper, firewall, login, update) · monitors
 schemes/             one file per color scheme
 templates/           config templates (colors filled in from the scheme), incl. wallpaper drawings
 wallpapers/          the bundled waterbear artwork (black and white, recolored per theme)
@@ -154,6 +193,7 @@ tools/build-installer.sh   bundles everything into dist/Installer.sh
 
 Copy a file in `schemes/`, change `DESC` and the 21 colors in `PALETTE`
 (background, text, accent, accent 2, dim, then the 16 terminal colors), then run `waterbear theme NAME`.
+(Or skip the file: Look & feel → Theme → Your own colors.)
 
 To let people pick the accent (like Noir), also set `ACCENTS="name:hex ..."` and `ACCENT_DEFAULT=name`.
 The picked color replaces accent 2. `ACCENT_SLOTS="C1:0 C9:25"` makes terminal colors follow it too

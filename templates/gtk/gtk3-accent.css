@@ -1,0 +1,7 @@
+/* Light mode with a dark theme: GTK 3 apps stay light (@@GTK_THEME@@) and only take the accent color */
+@define-color theme_selected_bg_color #@@A_DARK@@;
+@define-color accent_color #@@A_DARK@@;
+@define-color accent_bg_color #@@A_DARK@@;
+.view:selected, iconview:selected, treeview.view:selected, row:selected, selection { background-color: #@@A_DARK@@; color: #ffffff; }
+button.suggested-action, check:checked, radio:checked, switch:checked { background-color: #@@A_DARK@@; background-image: none; border-color: #@@A_DARK@@; }
+scale highlight, progressbar progress { background-color: #@@A_DARK@@; }

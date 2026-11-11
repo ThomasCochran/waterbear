@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # waterbear-wallpaper — shows your Waterbear background. Runs at login; Waterbear restarts it after changes.
 #   solid               Hyprland's own background color (nothing to run)
-#   grid / orbit / logo a generated image, shown with hyprpaper
+#   grid / orbit / logo / picture   an image (generated, or your own picture), shown with hyprpaper
 #   cmatrix / cava      a live terminal background (kitty panel); falls back to solid on battery
 #                       unless you allowed live wallpapers on battery
 STATE="$HOME/.config/waterbear/state.conf"
@@ -35,7 +35,7 @@ if [[ "${1:-}" != --loop ]]; then
     pkill -f 'waterbear-wallpaper --loop' 2>/dev/null
     stop_live; stop_static
     case "$WALLPAPER" in
-        grid|orbit|logo) start_static ;;
+        grid|orbit|logo|picture) start_static ;;
         cmatrix|cava)    (setsid "$0" --loop > /dev/null 2>&1 &) ;;
     esac
     exit 0

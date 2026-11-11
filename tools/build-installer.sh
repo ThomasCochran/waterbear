@@ -10,9 +10,9 @@ cat << 'HEADER'
 #!/usr/bin/env bash
 # Installer.sh — Waterbear, an Arch + Hyprland setup. https://github.com/ThomasCochran/waterbear
 # One file with everything inside. Run it on Arch as your normal user:
-#   chmod +x Installer.sh && ./Installer.sh            (setup wizard)
-#   ./Installer.sh --yes                               (all defaults, no questions)
-# Options are passed to `waterbear setup`; extract and run `./waterbear help` to see them.
+#   chmod +x Installer.sh && ./Installer.sh            (installs the waterbear tool; then run: waterbear)
+#   ./Installer.sh --desktop --yes                     (also installs the desktop with the defaults)
+# Options are passed to install.sh; extract and run `./waterbear help` to see the setup options.
 set -euo pipefail
 [[ $EUID -eq 0 ]] && { echo "Run this as your normal user, not root." >&2; exit 1; }
 tmp="$(mktemp -d)"
