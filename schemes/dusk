@@ -1,0 +1,4 @@
+# Dusk
+DESC="soft · matte evening, dusty rose + blue, no glow"
+PALETTE="1f1d24 dcd6e0 c9a0b8 9fb3c8 8d8794 2a2730 c98a8a 9fb89a d6c08e 8ea4c4 b89cc0 92b8b4 c6c0cc 3b3742 d6a2a2 b4cbaf e2d0a6 a6b9d4 c9b2d0 a9cbc7 f0ebf2"
+GLOW=soft   # plain shadow, no neon halo or glow

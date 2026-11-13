@@ -3,14 +3,14 @@
 #   packages: "name" or "name/aur-name" (the repo package when the repos have it, otherwise that AUR package)
 #   flags: aur = usually from the AUR (installs yay when needed) · hook = runs app_hook_<id> after installing
 #          none = no packages (Waterbear-only extras) · webapp = a web app Waterbear makes (installed = its launcher exists)
-APP_SECTIONS=(Browsers Editors "Dev tools" Terminal "Media & creative" "Office & notes" Sharing Gaming Extras)
+APP_SECTIONS=(Browsers Editors "Dev tools" "AI tools" Terminal "Media & creative" "Office & notes" Sharing Gaming Extras)
 APP_CATALOG=(
  "firefox|Browsers|Firefox|firefox|"
  "chromium|Browsers|Chromium (also runs web apps in their own window)|chromium|"
  "brave|Browsers|Brave|brave-bin|aur"
  "zen|Browsers|Zen Browser|zen-browser-bin|aur"
  "tor|Browsers|Tor Browser (private browsing over Tor · downloads and checks Tor Browser on first start)|torbrowser-launcher|"
- "duckduckgo|Browsers|DuckDuckGo (no Linux app exists: a DuckDuckGo window + Super+S searches DuckDuckGo)||none webapp hook"
+ "duckduckgo|Browsers|DuckDuckGo (a DuckDuckGo window · browsers start on DuckDuckGo · Super+S searches it)||none webapp hook"
  "nvim|Editors|Neovim + LazyVim (Vim as an IDE)|neovim git ripgrep fd fzf lazygit tree-sitter-cli gcc|hook"
  "vscode|Editors|VS Code (open-source build)|code|"
  "zed|Editors|Zed|zed|"
@@ -23,6 +23,15 @@ APP_CATALOG=(
  "lazygit|Dev tools|lazygit (Git in the terminal)|lazygit|"
  "lazydocker|Dev tools|lazydocker (Docker in the terminal)|lazydocker|"
  "ghcli|Dev tools|GitHub CLI (gh)|github-cli|"
+ "ssh|Dev tools|SSH client + a key (for GitHub and servers · to let others in: System → Firewall → SSH)|openssh|hook"
+ "java|Dev tools|Java (OpenJDK)|jdk-openjdk|"
+ "cpp|Dev tools|C / C++ (gcc · clang · cmake · gdb)|gcc clang cmake gdb|"
+ "zig|Dev tools|Zig|zig|"
+ "virtualbox|Dev tools|VirtualBox (virtual machines)|virtualbox virtualbox-host-dkms|hook"
+ "claude|AI tools|Claude Code (Anthropic's coding agent in the terminal)|claude-code|aur"
+ "opencode|AI tools|OpenCode (open-source coding agent, works with many AI providers)|opencode/opencode-bin|"
+ "gemini|AI tools|Gemini CLI (Google)|gemini-cli|"
+ "codex|AI tools|Codex CLI (OpenAI)|openai-codex|"
  "btop|Terminal|btop (system monitor)|btop|"
  "htop|Terminal|htop (classic monitor)|htop|"
  "powertools|Terminal|Power tools (fzf · ripgrep · bat · eza · zoxide)|fzf ripgrep bat eza zoxide fd|"
@@ -36,10 +45,14 @@ APP_CATALOG=(
  "gimp|Media & creative|GIMP (image editor)|gimp|"
  "obs|Media & creative|OBS Studio (screen recording)|obs-studio|"
  "libreoffice|Office & notes|LibreOffice|libreoffice-fresh|"
+ "officefonts|Office & notes|Office fonts + spell-check (Word / PowerPoint files keep their layout)|ttf-liberation ttf-carlito ttf-caladea ttf-dejavu hunspell hunspell-en_us|"
  "obsidian|Office & notes|Obsidian (notes)|obsidian|"
  "localsend|Sharing|LocalSend (send files between your phone and computer)|localsend/localsend-bin|hook"
  "kdeconnect|Sharing|KDE Connect (phone integration · open its ports in System → Firewall)|kdeconnect|"
  "steam|Gaming|Steam + GPU drivers + Proton-GE + GameMode + MangoHud||none hook"
+ "lutris|Gaming|Lutris (GOG, Battle.net, emulators… + GPU drivers)|lutris|hook"
+ "heroic|Gaming|Heroic (Epic · GOG · Amazon games + GPU drivers)|heroic-games-launcher-bin|aur hook"
+ "prism|Gaming|Prism Launcher (Minecraft)|prismlauncher|"
  "cmatrix|Extras|cmatrix (Matrix rain)|cmatrix|"
  "cava|Extras|cava (music visualizer)|cava|"
  "clock|Extras|Terminal clock (type: clock)||none"
@@ -49,6 +62,19 @@ app_field() {  # app_field ID N  (1=id 2=section 3=label 4=packages 5=flags)
     local e; for e in "${APP_CATALOG[@]}"; do
         [[ "${e%%|*}" == "$1" ]] && { echo "$e" | cut -d'|' -f"$2"; return 0; }
     done
+}
+
+# Bundles: a few apps picked together. id|name|app ids. A bundle only ever adds apps.
+APP_BUNDLES=(
+ "programmer|Programmer|nvim vscode python node rust go docker lazygit ghcli ssh powertools tmux btop claude"
+ "work|Work PC|firefox libreoffice officefonts obsidian localsend signal"
+ "gamer|Gamer|steam lutris heroic prism discord obs"
+)
+bundle_field() {  # bundle_field ID N  (1=id 2=name 3=apps)
+    local b; for b in "${APP_BUNDLES[@]}"; do
+        [[ "${b%%|*}" == "$1" ]] && { cut -d'|' -f"$2" <<< "$b"; return 0; }
+    done
+    return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -116,6 +142,23 @@ apps_section() {  # apps_section SECTION
     for id in $APPS; do [[ " $(section_ids "$1" | tr '\n' ' ') " == *" $id "* ]] || keep+="$id "; done
     need_sudo
     apps_sync "$keep$sel"
+}
+
+# Tick a bundle's apps (all ticked to start); installs what's ticked, never removes anything
+apps_bundle() {  # apps_bundle ID
+    local name ids id opts=() sel
+    name=$(bundle_field "$1" 2) || { warn "No bundle called '$1'. Bundles: $(printf '%s ' "${APP_BUNDLES[@]%%|*}")"; return 1; }
+    ids=$(bundle_field "$1" 3)
+    apps_reconcile
+    for id in $ids; do
+        local tag=""; [[ "$(app_field "$id" 5)" == *aur* ]] && tag=" (AUR)"
+        app_is_installed "$id" && tag+="  ✓ installed"
+        opts+=("$(app_field "$id" 3)$tag::$id")
+    done
+    sel=$(ui_checks "Bundle: $name" "$ids" "${opts[@]}") || return 1
+    [[ -n "${sel// /}" ]] || return 1
+    need_sudo
+    apps_sync "$APPS $sel"   # everything you have stays in the list, so nothing is offered for removal
 }
 
 # ---------------------------------------------------------------------------
@@ -235,20 +278,58 @@ app_hook_localsend() {
 app_hook_duckduckgo() {
     webapp_write DuckDuckGo "https://duckduckgo.com" duckduckgo
     SEARCH=duckduckgo
+    browser_policies_apply
     info "DuckDuckGo is in your app launcher, and Super+S now searches DuckDuckGo."
-    info "In your browser: Settings → Search → Default search engine → DuckDuckGo."
+    info "Firefox, Chromium and Brave now start on DuckDuckGo (restart them if they're open)."
+    info "Firefox's search bar: Settings → Search → Default search engine → DuckDuckGo."
 }
 app_unhook_duckduckgo() {
     rm -f "$WEBAPP_DIR/waterbear-webapp-duckduckgo.desktop"
     SEARCH=google
+    browser_policies_apply
 }
+
+app_hook_ssh() {
+    local key="$HOME/.ssh/id_ed25519"
+    if [[ -f "$key" ]]; then
+        info "You already have an SSH key ($key)."
+    elif $INTERACTIVE; then
+        info "Making your SSH key. A passphrase protects it if someone copies the file (Enter = none)."
+        mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+        ssh-keygen -t ed25519 -C "$(id -un)@$(uname -n)" -f "$key" || { warn "No key made. Run: ssh-keygen -t ed25519"; return 1; }
+    else
+        info "Make an SSH key any time with: ssh-keygen -t ed25519"; return 0
+    fi
+    info "Your public key (safe to share; paste it in GitHub → Settings → SSH keys, or a server's ~/.ssh/authorized_keys):"
+    echo; cat "$key.pub"; echo
+}
+
+app_hook_virtualbox() {
+    # VirtualBox's kernel driver is built by DKMS for each kernel, which needs that kernel's headers
+    local k kernels=()
+    mapfile -t kernels < <(pacman -Qq linux linux-lts linux-zen linux-hardened linux-cachyos 2> /dev/null || true)
+    for k in "${kernels[@]}"; do pkg_installed "$k-headers" || pac "$k-headers" || warn "Couldn't install $k-headers."; done
+    sudo dkms autoinstall > /dev/null 2>&1 || true
+    sudo usermod -aG vboxusers "$USER"
+    sudo modprobe vboxdrv 2> /dev/null || true
+    info "Restart your computer before the first virtual machine (the driver and your vboxusers group need it)."
+}
+
+GAME_DRIVERS_DONE=false
+game_drivers() {  # multilib + GPU drivers + GameMode/MangoHud, once (Steam's setup does it too)
+    $GAME_DRIVERS_DONE && return 0
+    if app_is_installed steam || has_app steam; then GAME_DRIVERS_DONE=true; return 0; fi
+    "$WB_HOME/bin/steam-setup.sh" --drivers-only $($INTERACTIVE || echo --yes) && GAME_DRIVERS_DONE=true
+}
+app_hook_lutris() { game_drivers; }
+app_hook_heroic() { game_drivers; }
 
 app_hook_rust() {
     rustup default stable || warn "Run 'rustup default stable' yourself to finish setting up Rust."
 }
 
 app_hook_steam() {
-    "$WB_HOME/bin/steam-setup.sh" $($INTERACTIVE || echo --yes)
+    "$WB_HOME/bin/steam-setup.sh" $($INTERACTIVE || echo --yes) && GAME_DRIVERS_DONE=true
 }
 
 # ---------------------------------------------------------------------------
@@ -320,7 +401,10 @@ webapp_list() {  # prints "file<TAB>name<TAB>url" for each web app you added
 }
 
 webapp_write() {  # webapp_write NAME URL SLUG — the launcher entry for a web app
-    local name="$1" url="$2" slug="$3" icon=web-browser f
+    local name="$1" url="$2" slug="$3" icon=web-browser f exec_url
+    # Exec= rules (desktop entry spec): % is written %%, and " ` $ \\ are escaped inside quotes
+    exec_url="${url//\\/\\\\}"; exec_url="${exec_url//\"/\\\"}"; exec_url="${exec_url//\`/\\\`}"; exec_url="${exec_url//\$/\\\$}"
+    exec_url="${exec_url//%/%%}"
     [[ -f "/usr/share/icons/Papirus/64x64/apps/$slug.svg" ]] && icon="$slug"
     f="$WEBAPP_DIR/waterbear-webapp-$slug.desktop"
     mkdir -p "$WEBAPP_DIR"
@@ -329,7 +413,7 @@ webapp_write() {  # webapp_write NAME URL SLUG — the launcher entry for a web 
 Type=Application
 Name=$name
 Comment=Web app: $url (added in Waterbear → Install → Web apps)
-Exec=waterbear webapp-open "$url"
+Exec=waterbear webapp-open "$exec_url"
 Icon=$icon
 Categories=Network;WebBrowser;
 X-Waterbear-URL=$url
@@ -342,13 +426,86 @@ webapp_add() {
     name="${name//[$'\t\r\n']/}"; [[ -n "${name// /}" ]] || return 0
     url=$(ui_input "Address for $name" "https://") || return 0
     [[ "$url" =~ ^https?://[^[:space:]]+\.[^[:space:]]+$ ]] || { warn "'$url' doesn't look like a web address (https://...)."; ui_pause; return 0; }
-    slug=$(tr '[:upper:]' '[:lower:]' <<< "$name" | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//')
-    [[ -n "$slug" ]] || slug="app$RANDOM"
+    slug=$(webapp_slug "$name")
     webapp_write "$name" "$url" "$slug"
     ok "Added $name. It's in your app launcher now."
     local b found=""
     for b in chromium brave google-chrome-stable vivaldi-stable vivaldi microsoft-edge-stable; do command -v "$b" > /dev/null && found=$b && break; done
     [[ -z "$found" ]] && info "Tip: with a Chromium-based browser (Install → Browsers) web apps open in their own window; Firefox opens them as a normal window."
+    ui_pause
+}
+
+# Common web apps: slug|name|address. Ticked = its launcher exists.
+WEBAPP_PRESETS=(
+ "youtube|YouTube|https://www.youtube.com"
+ "gmail|Gmail|https://mail.google.com"
+ "google-calendar|Google Calendar|https://calendar.google.com"
+ "google-drive|Google Drive|https://drive.google.com"
+ "google-docs|Google Docs|https://docs.google.com"
+ "outlook|Outlook|https://outlook.live.com/mail"
+ "office|Microsoft 365|https://www.office.com"
+ "whatsapp|WhatsApp|https://web.whatsapp.com"
+ "claude|Claude|https://claude.ai"
+ "chatgpt|ChatGPT|https://chatgpt.com"
+ "notion|Notion|https://www.notion.so"
+ "github|GitHub|https://github.com"
+ "netflix|Netflix|https://www.netflix.com"
+ "twitch|Twitch|https://www.twitch.tv"
+)
+
+webapps_common() {
+    local e slug name url on="" opts=() sel
+    for e in "${WEBAPP_PRESETS[@]}"; do
+        IFS='|' read -r slug name url <<< "$e"
+        [[ -f "$WEBAPP_DIR/waterbear-webapp-$slug.desktop" ]] && on+="$slug "
+        opts+=("$(printf '%-16s' "$name") ${url#https://}::$slug")
+    done
+    sel=$(ui_checks "Common web apps (ticked = in your app launcher)" "$on" "${opts[@]}") || return 0
+    for e in "${WEBAPP_PRESETS[@]}"; do
+        IFS='|' read -r slug name url <<< "$e"
+        if [[ " $sel " == *" $slug "* ]]; then
+            [[ " $on " == *" $slug "* ]] || { webapp_write "$name" "$url" "$slug"; ok "Added $name."; }
+        elif [[ " $on " == *" $slug "* ]]; then
+            rm -f "$WEBAPP_DIR/waterbear-webapp-$slug.desktop"; ok "Removed $name."
+        fi
+    done
+    ui_pause
+}
+
+webapp_slug() {  # webapp_slug NAME — a file-name-safe slug that no web app uses yet
+    local base slug n=2
+    base=$(tr '[:upper:]' '[:lower:]' <<< "$1" | tr -cs 'a-z0-9' '-' | sed 's/^-//; s/-$//' | cut -c1-40)
+    [[ -n "$base" ]] || base="app"
+    slug="$base"
+    while [[ -f "$WEBAPP_DIR/waterbear-webapp-$slug.desktop" ]]; do slug="$base-$n"; ((n++)); done
+    echo "$slug"
+}
+
+# Bookmarks: export them from any browser as an HTML file (Firefox: Ctrl+Shift+O → Import and Backup →
+# Export Bookmarks to HTML · Chrome/Brave: Bookmark manager → ⋮ → Export bookmarks), then drag the file
+# onto the terminal: that types its path in.
+webapps_import() {
+    local file
+    file=$(ui_input "Bookmarks file: drag it onto this window, or type its path, then Enter" "" "~/bookmarks.html") || return 0
+    file="${file//\'/}"; file="${file//\"/}"; file="${file#file://}"; file="${file%"${file##*[![:space:]]}"}"; file="${file#"${file%%[![:space:]]*}"}"
+    file="${file/#\~/$HOME}"; file="${file//\\ / }"
+    if [[ ! -f "$file" ]]; then warn "Can't find '$file'."; ui_pause; return 0; fi
+    local urls=() names=() opts=() i=0 url name
+    while IFS=$'\t' read -r url name; do
+        [[ -n "$url" ]] || continue
+        [[ -n "${name// /}" ]] || { name="${url#*://}"; name="${name%%/*}"; }
+        urls+=("$url"); names+=("$name"); opts+=("$(printf '%-30.30s' "$name") ${url#*://}::$i"); ((i++)) || true
+    done < <(grep -oiE '<a [^>]*href="https?://[^"]+"[^>]*>[^<]*</a>' "$file" \
+             | sed -E 's/.*[Hh][Rr][Ee][Ff]="([^"]+)"[^>]*>([^<]*)<\/[Aa]>.*/\1\t\2/' \
+             | sed -E 's/&amp;/\&/g; s/&quot;//g; s/&#39;//g; s/&lt;//g; s/&gt;//g' | awk -F'\t' '!seen[$1]++')
+    if (( i == 0 )); then warn "No web addresses found in that file (it should be a bookmarks .html export)."; ui_pause; return 0; fi
+    local sel idx n=0
+    sel=$(ui_checks "Bookmarks: tick the ones to make into web apps ($i found)" "" "${opts[@]}") || return 0
+    for idx in $sel; do
+        name="${names[$idx]//[$'\t\r\n\"']/}"
+        webapp_write "$name" "${urls[$idx]}" "$(webapp_slug "$name")"; ((n++)) || true
+    done
+    ok "Added $n web app(s). They're in your app launcher."
     ui_pause
 }
 
@@ -359,8 +516,14 @@ webapps_menu() {
         while IFS=$'\t' read -r f name url; do opts+=("$name  ${url}::$f"); done < <(webapp_list)
         [[ ${#opts[@]} -eq 0 ]] && info "No web apps yet. Add one: a website that opens in its own window." && echo
         local c
-        c=$(ui_pick "Web apps" add "${opts[@]}" "-- " "+ Add a web app (name + address)::add") || return 0
-        if [[ "$c" == add ]]; then webapp_add; continue; fi
+        c=$(ui_pick "Web apps" add "${opts[@]}" "-- " "+ Add a web app (name + address)::add" \
+            "+ Common web apps   YouTube · Gmail · Calendar · WhatsApp… (tick boxes)::common" \
+            "+ From your bookmarks   pick from a bookmarks file you exported::import") || return 0
+        case "$c" in
+            add)    webapp_add; continue ;;
+            common) webapps_common; continue ;;
+            import) webapps_import; continue ;;
+        esac
         name=$(sed -n 's/^Name=//p' "$c" | head -n1); url=$(sed -n 's/^X-Waterbear-URL=//p' "$c" | head -n1)
         local act
         act=$(ui_pick "$name  ($url)" open "Open it::open" "Remove it::remove") || continue

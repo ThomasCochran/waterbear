@@ -1,0 +1,4 @@
+# Slate
+DESC="work · calm gray-blue, one quiet blue accent"
+PALETTE="1e2228 d5d9e0 6b9bd2 8fa8c8 858d99 282d35 d07a7a 8fb38a d4b67a 6b9bd2 a98bc4 7ab3b8 c0c6cf 3a414c dc9494 a6c4a1 e0c894 8ab2e0 bea5d4 96c6ca eef0f3"
+GLOW=soft   # plain shadow, no neon halo or glow

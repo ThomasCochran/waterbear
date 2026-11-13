@@ -3,6 +3,7 @@
 #
 #   ./steam-setup.sh          asks before installing the NVIDIA driver
 #   ./steam-setup.sh --yes    no questions (installs the NVIDIA driver if the card supports it)
+#   ./steam-setup.sh --drivers-only [--yes]   only steps 1-4 + GameMode/MangoHud (for Lutris, Heroic…)
 #
 # What it does:
 #   1. Turns on Arch's 32-bit "multilib" repo (Steam needs it)
@@ -15,13 +16,15 @@
 # Takes a Snapper snapshot first if Snapper is set up, so you can roll back.
 set -euo pipefail
 
-ASSUME_YES=false
-case "${1:-}" in
-    --yes|-y) ASSUME_YES=true ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
-    "") ;;
-    *) echo "Unknown option: $1 (try --help)" >&2; exit 1 ;;
-esac
+ASSUME_YES=false; DRIVERS_ONLY=false
+for arg in "$@"; do
+    case "$arg" in
+        --yes|-y) ASSUME_YES=true ;;
+        --drivers-only) DRIVERS_ONLY=true ;;
+        -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+        *) echo "Unknown option: $arg (try --help)" >&2; exit 1 ;;
+    esac
+done
 
 c_cyan=$'\033[1;36m'; c_yel=$'\033[1;33m'; c_red=$'\033[1;31m'; c_grn=$'\033[1;32m'; c_off=$'\033[0m'
 say()  { printf '\n%s==>%s %s\n' "$c_cyan" "$c_off" "$1"; }
@@ -108,12 +111,13 @@ if $has_nvidia; then
         fi
     fi
 fi
-[[ ${#DRIVERS[@]} -eq 0 ]] && warn "No known GPU driver to add. Steam will still install."
+[[ ${#DRIVERS[@]} -eq 0 ]] && warn "No known GPU driver to add. Games still install."
 
 # ---------------------------------------------------------------------------
 if [[ -f /etc/snapper/configs/root ]] && command -v snapper > /dev/null; then
     say "Taking a snapshot first"
-    sudo snapper -c root create -d "before-steam-$(date +%F)" && ok "Snapshot 'before-steam-$(date +%F)' created."
+    snap="before-$($DRIVERS_ONLY && echo gpu-drivers || echo steam)-$(date +%F)"
+    sudo snapper -c root create -d "$snap" && ok "Snapshot '$snap' created."
 fi
 
 if [[ ${#DRIVERS[@]} -gt 0 ]]; then
@@ -122,15 +126,18 @@ if [[ ${#DRIVERS[@]} -gt 0 ]]; then
     sudo pacman -S --needed --noconfirm "${DRIVERS[@]}"
 fi
 
-say "Installing Steam"
-sudo pacman -S --needed --noconfirm steam ttf-liberation
-ok "Steam installed."
+if ! $DRIVERS_ONLY; then
+    say "Installing Steam"
+    sudo pacman -S --needed --noconfirm steam ttf-liberation
+    ok "Steam installed."
+fi
 
 say "Gaming extras: GameMode + MangoHud"
 sudo pacman -S --needed --noconfirm gamemode lib32-gamemode mangohud lib32-mangohud
 sudo usermod -aG gamemode "$USER"
 ok "GameMode (performance boost) and MangoHud (FPS overlay) installed."
 
+if ! $DRIVERS_ONLY; then   # Proton-GE is a Steam tool
 say "Downloading the latest Proton-GE"
 ge_dir="$HOME/.local/share/Steam/compatibilitytools.d"
 mkdir -p "$ge_dir"
@@ -153,6 +160,7 @@ else
     rm -rf "$tmp"
     ok "$ge_name installed. Pick it per game: Properties → Compatibility."
 fi
+fi
 
 # ---------------------------------------------------------------------------
 if $nvidia_installed; then
@@ -166,7 +174,7 @@ if $nvidia_installed; then
     # Suspend/resume support for NVIDIA (harmless if already enabled)
     sudo systemctl enable nvidia-suspend.service nvidia-resume.service nvidia-hibernate.service 2>/dev/null || true
 
-    if $hybrid; then
+    if $hybrid && ! $DRIVERS_ONLY; then
         mkdir -p "$HOME/.local/share/applications"
         cat > "$HOME/.local/share/applications/steam-nvidia.desktop" << 'EOF'
 [Desktop Entry]
@@ -184,6 +192,11 @@ fi
 
 # ---------------------------------------------------------------------------
 say "Done"
+if $DRIVERS_ONLY; then
+    $nvidia_installed && echo "   Reboot before gaming so the NVIDIA driver loads:  reboot"
+    $hybrid && $nvidia_installed && echo "   Run games on the NVIDIA card with: prime-run (Lutris/Heroic: add it as a launch prefix)"
+    exit 0
+fi
 if $nvidia_installed; then
     echo "   Reboot before gaming so the NVIDIA driver loads:  reboot"
     echo "   After reboot, check it with:  nvidia-smi"

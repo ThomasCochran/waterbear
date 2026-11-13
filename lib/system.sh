@@ -81,7 +81,7 @@ snapshots_menu() {
 }
 
 # ---------------------------------------------------------------------------
-# Login: text login on tty1 (default) or hyprlock as the login screen
+# Login: text login on tty1 (default), hyprlock as the login screen (one user), or the tuigreet greeter (any users)
 # ---------------------------------------------------------------------------
 other_login_screen() {  # the login screen that starts at boot, if it isn't greetd: sddm, gdm, lightdm… ("" = none)
     local t; t=$(readlink /etc/systemd/system/display-manager.service 2> /dev/null) || return 0
@@ -90,11 +90,20 @@ other_login_screen() {  # the login screen that starts at boot, if it isn't gree
     return 0
 }
 
+login_label() {  # login_label [LOGIN]
+    case "${1:-$LOGIN}" in
+        screen)  echo "hyprlock login screen" ;;
+        greeter) echo "tuigreet greeter (any user)" ;;
+        *)       echo "text login on tty1" ;;
+    esac
+}
+
 login_apply() {
-    step "Login: $([[ $LOGIN == screen ]] && echo "hyprlock login screen" || echo "text login on tty1")"
-    if [[ "$LOGIN" == screen ]]; then
-        pac greetd
-        sed "s/@@LOGIN_USER@@/$(id -un)/" "$WB_HOME/system/greetd-config.toml" > /tmp/wb-greetd.toml
+    step "Login: $(login_label)"
+    if [[ "$LOGIN" == screen || "$LOGIN" == greeter ]]; then
+        local toml=greetd-config.toml what=hyprlock
+        if [[ "$LOGIN" == greeter ]]; then pac greetd greetd-tuigreet; toml=greetd-tuigreet.toml; what="the tuigreet greeter"; else pac greetd; fi
+        sed "s/@@LOGIN_USER@@/$(id -un)/" "$WB_HOME/system/$toml" > /tmp/wb-greetd.toml
         sudo install -Dm644 /tmp/wb-greetd.toml /etc/greetd/config.toml; rm -f /tmp/wb-greetd.toml
         if grep -q 'start Hyprland on tty1' "$HOME/.bash_profile" 2>/dev/null; then
             sed -i '/^# .*start Hyprland on tty1$/,/^fi$/d' "$HOME/.bash_profile"
@@ -103,7 +112,7 @@ login_apply() {
         # instead of greetd: only one can be on. It's turned off, not removed, and stays up until you reboot.
         local dm; dm=$(other_login_screen)
         if [[ -n "$dm" ]]; then
-            info "Your current login screen ($dm) gets turned off; hyprlock takes its place."
+            info "Your current login screen ($dm) gets turned off; $what takes its place."
             sudo systemctl disable "$dm.service" > /dev/null 2>&1 || warn "Couldn't turn off $dm."
             info "To get $dm back later: pick the text login in this menu, then: sudo systemctl enable $dm"
         fi
@@ -112,7 +121,7 @@ login_apply() {
         if systemctl is-enabled --quiet greetd.service 2> /dev/null; then
             info "Takes effect on the next boot."
         else
-            warn "Couldn't turn on the hyprlock login screen (greetd)${dm:+: $dm is still your login screen}."
+            warn "Couldn't turn on $what (greetd)${dm:+: $dm is still your login screen}."
             info "See why with: sudo systemctl enable greetd"
         fi
     else
@@ -184,14 +193,39 @@ fw_apply() {
 fw_apply_quiet() { [[ "$FIREWALL" == yes ]] && command -v ufw > /dev/null && fw_apply > /dev/null; return 0; }
 
 # ---------------------------------------------------------------------------
-# Dark mode for Firefox (a system policy, so it needs sudo)
+# Browser policies (system files, so they need sudo): Firefox dark mode, and with DuckDuckGo ticked
+# (SEARCH=duckduckgo) Firefox / Chromium / Brave start on DuckDuckGo. Both live in one Firefox file,
+# so this writes everything each time. Chromium/Brave get "recommended" policies: you can still change them.
 # ---------------------------------------------------------------------------
-firefox_dark_apply() {
+DDG_URL="https://duckduckgo.com"
+browser_policies_apply() {
     dark_vars
+    local ff home=""
+    [[ "${SEARCH:-google}" == duckduckgo ]] && home=",
+  \"Homepage\": { \"URL\": \"$DDG_URL\", \"StartPage\": \"homepage\", \"Locked\": false }"
+    ff="{ \"policies\": {
+  \"Preferences\": { \"layout.css.prefers-color-scheme.content-override\": { \"Value\": $T_FF, \"Status\": \"default\" } }$home
+} }"
     sudo mkdir -p /etc/firefox/policies
-    printf '%s\n' '{ "policies": { "Preferences": {' \
-        "  \"layout.css.prefers-color-scheme.content-override\": { \"Value\": $T_FF, \"Status\": \"default\" }" \
-        '} } }' | sudo tee /etc/firefox/policies/policies.json > /dev/null
+    printf '%s\n' "$ff" | sudo tee /etc/firefox/policies/policies.json > /dev/null
+    local d
+    for d in /etc/chromium/policies/recommended /etc/brave/policies/recommended; do
+        if [[ "${SEARCH:-google}" == duckduckgo ]]; then
+            sudo mkdir -p "$d"
+            printf '%s\n' "{
+  \"RestoreOnStartup\": 4,
+  \"RestoreOnStartupURLs\": [\"$DDG_URL\"],
+  \"HomepageLocation\": \"$DDG_URL\",
+  \"HomepageIsNewTabPage\": false,
+  \"DefaultSearchProviderEnabled\": true,
+  \"DefaultSearchProviderName\": \"DuckDuckGo\",
+  \"DefaultSearchProviderKeyword\": \"ddg\",
+  \"DefaultSearchProviderSearchURL\": \"$DDG_URL/?q={searchTerms}\"
+}" | sudo tee "$d/waterbear.json" > /dev/null
+        else
+            sudo rm -f "$d/waterbear.json"
+        fi
+    done
 }
 
 # ---------------------------------------------------------------------------

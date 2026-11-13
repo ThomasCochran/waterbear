@@ -63,18 +63,18 @@ hl.config({
         active_opacity   = @@OP_ACTIVE@@,
         inactive_opacity = @@OP_INACTIVE@@,
 
-        -- Outer neon halo: a cyan shadow instead of a dark one
+        -- Outer neon halo: a shadow in the accent color instead of a dark one (a plain shadow with GLOW="soft" themes)
         shadow = {
             enabled      = true,
             range        = 14,
             render_power = 2,
-            color        = 0x55@@A@@,   -- 0xAARRGGBB
+            color        = 0x@@SHADOW@@,   -- 0xAARRGGBB
             color_inactive = 0x00000000,
         },
 
         -- Inner glow (new in 0.55)
         glow = {
-            enabled      = true,
+            enabled      = @@GLOW_ON@@,
             range        = 8,
             render_power = 3,
             color        = 0x33@@B@@,

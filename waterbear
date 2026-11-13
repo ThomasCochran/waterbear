@@ -10,6 +10,7 @@
 #   waterbear bar [NAME]      dashboard | islands | terminal | none
 #   waterbear shell [NAME]    bash | fish: the shell your terminals open
 #   waterbear apps            install / remove apps, search any package, web apps
+#   waterbear bundle NAME     install a set of apps at once: programmer | work | gamer (you can untick any)
 #   waterbear monitors        monitor order (left → right) and which workspaces go on which
 #   waterbear update          snapshot, update the system and Waterbear, refresh configs
 #   waterbear autoupdate [off|ask|auto]  no argument = check now (also runs at login, then every 3 hours)
@@ -26,7 +27,7 @@
 #   --wallpaper solid|grid|orbit|logo|cmatrix|cava   --bar NAME   --prompt minimal|info|hacker|off
 #   --shell bash|fish     --keybinds waterbear|omarchy|default     --light (light mode)
 #   --apps "btop nvim ..."      --steam      --yay      --auto-update off|ask|auto
-#   --login-screen  --text-login   --no-snapper   --no-firewall   --delete-old
+#   --login-screen  --greeter  --text-login   --no-snapper   --no-firewall   --delete-old
 set -euo pipefail
 
 WB_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -361,7 +362,7 @@ pick_firewall() { ui_steps st_fw_on st_fw_ports; }
 dark_set() {  # dark_set yes|no
     DARK_MODE="$1"; state_save
     if [[ "$DESKTOP" == yes ]]; then
-        need_sudo; firefox_dark_apply
+        need_sudo; browser_policies_apply
         apply_all
     fi
     ok "Dark mode: $([[ $DARK_MODE == yes ]] && echo on || echo "off (light)") · Firefox and apps that were open pick it up when they restart."
@@ -497,7 +498,7 @@ setup_summary() {
         "  System      snapper: $SNAPPER (weekly: $SNAPPER_WEEKLY) · firewall: $fw · yay: $YAY" \
         "  Screensaver $SAVER · $IDLE_SAVER/$IDLE_LOCK/$IDLE_OFF/$IDLE_SUSPEND min" \
         "  Updates     auto-update: $AUTO_UPDATE" \
-        "  Login       $([[ $LOGIN == screen ]] && echo "hyprlock login screen" || echo "text login on tty1")"
+        "  Login       $(login_label)"
 }
 
 old_configs_found() {
@@ -538,7 +539,7 @@ setup_run() {
     pac "${pkgs[@]}"
 
     step "Dark mode for Firefox"
-    firefox_dark_apply
+    browser_policies_apply
 
     if [[ "$YAY" == yes ]]; then install_yay; fi
 
@@ -576,8 +577,8 @@ setup_run() {
     esac
     if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
         info "You're in Hyprland already; most changes are live. Log out and back in for the rest."
-    elif [[ "$LOGIN" == screen ]]; then
-        info "Reboot to get the hyprlock login screen:  reboot"
+    elif [[ "$LOGIN" == screen || "$LOGIN" == greeter ]]; then
+        info "Reboot to get the $(login_label):  reboot"
     else
         info "Reboot, or log out and log in on tty1; Hyprland starts by itself."
     fi
@@ -603,6 +604,7 @@ cmd_setup() {
             --yay)          YAY=yes ;;
             --login-screen) LOGIN=screen ;;
             --text-login)   LOGIN=text ;;
+            --greeter)      LOGIN=greeter ;;
             --no-snapper)   SNAPPER=no; SNAPPER_WEEKLY=no ;;
             --no-firewall)  FIREWALL=no ;;
             --delete-old)   OLD_CONFIGS=delete ;;
@@ -641,7 +643,7 @@ lbl_prompt() { echo "Prompt       $PROMPT"; }
 lbl_shell()  { echo "Shell        $USER_SHELL"; }
 lbl_idle()   { echo "Screensaver  $SAVER · lock after ${IDLE_LOCK} min"; }
 lbl_fw()     { echo "Firewall     $([[ $FIREWALL == yes ]] && echo "on · open: ${FW_PORTS:-nothing}" || echo off)"; }
-lbl_login()  { echo "Login        $([[ $LOGIN == screen ]] && echo hyprlock || echo "text on tty1")"; }
+lbl_login()  { echo "Login        $(login_label)"; }
 lbl_auto()   { echo "Auto-update  $AUTO_UPDATE · checks GitHub at login and every 3 hours"; }
 lbl_system() { echo "Snapper/yay  snapper: $SNAPPER · weekly snapshot: $SNAPPER_WEEKLY · yay: $YAY"; }
 
@@ -668,7 +670,8 @@ menu_desktop() {
             apply)   apply_all; ok "Configs refreshed."; ui_pause ;;
             login)   local l; l=$(ui_pick "Login" "$LOGIN" \
                          "Text login on tty1 (type username + password, Hyprland starts)::text" \
-                         "hyprlock as the login screen (single user: boots locked, same look as your lock screen)::screen") || continue
+                         "hyprlock as the login screen (single user: boots locked, same look as your lock screen)::screen" \
+                         "Greeter (tuigreet): type or pick a user + password; for computers with several users::greeter") || continue
                      LOGIN="$l"; state_save
                      if [[ "$DESKTOP" == yes ]]; then need_sudo; login_apply; else desktop_needed || true; fi
                      ui_pause ;;
@@ -720,8 +723,16 @@ menu_install() {
             while IFS= read -r id; do ((n++)) || true; app_is_installed "$id" && { ((have++)) || true; }; done < <(section_ids "$sec")
             opts+=("$(printf '%-17s' "$sec") $have of $n installed::$sec")
         done
+        opts+=("-- Bundles (a set of apps at once; nothing gets removed)")
+        local b bid bname bids
+        for b in "${APP_BUNDLES[@]}"; do
+            IFS='|' read -r bid bname bids <<< "$b"
+            n=0; have=0
+            for id in $bids; do ((n++)) || true; app_is_installed "$id" && { ((have++)) || true; }; done
+            opts+=("$(printf '%-17s' "$bname") $have of $n installed::@bundle:$bid")
+        done
         opts+=("-- More"
-               "Web apps           websites in their own window (you add them)::@webapps"
+               "Web apps           websites in their own window · common ones · from bookmarks::@webapps"
                "Search packages    anything in the official Arch repos::@search"
                "Search the AUR     official repos + AUR (installs yay if needed)::@aur"
                "Remove packages    pick from what you installed::@remove")
@@ -733,6 +744,8 @@ menu_install() {
             @search)  pkg_search repo ;;
             @aur)     pkg_search aur ;;
             @remove)  pkg_remove ;;
+            @bundle:*) ui_title "Install · $(bundle_field "${c#@bundle:}" 2) bundle"
+                      if apps_bundle "${c#@bundle:}"; then state_save; apply_quiet > /dev/null; ui_pause; fi ;;
             *)        ui_title "Install · $c"
                       if apps_section "$c"; then state_save; apply_quiet > /dev/null; ui_pause; fi ;;
         esac
@@ -820,7 +833,7 @@ cmd_menu() {
         c=$(ui_pick "What do you want to do?" "$last" \
             "Desktop       $d::desktop" \
             "Look & feel   theme · dark mode · background · bar · prompt · shell::look" \
-            "Install       apps by category · web apps · search any package::install" \
+            "Install       apps by category · bundles · web apps · search any package::install" \
             "Keyboard      $KEYBINDS shortcuts · shortcut list · menu shortcut::keyboard" \
             "System        snapshots · firewall · screensaver · monitors · snapper/yay::system" \
             "Update        system + Waterbear (you have $WB_VERSION)::update" \
@@ -882,6 +895,9 @@ case "${1:-menu}" in
               USER_SHELL="$v"; [[ "$v" == fish && "$DESKTOP" == yes ]] && ! pkg_installed fish && { need_sudo; pac fish; }
               state_save; apply_all; ok "Shell: $USER_SHELL" ;;
     apps)     state_load; $INTERACTIVE || die "This needs gum and a terminal."; scheme_load "$SCHEME"; ui_colors; menu_install ;;
+    bundle)   state_load; $INTERACTIVE || die "This needs gum and a terminal."; scheme_load "$SCHEME"; ui_colors
+              [[ -n "${2:-}" ]] || die "Use: waterbear bundle programmer|work|gamer"
+              if apps_bundle "$2"; then state_save; apply_quiet > /dev/null; fi ;;
     update)   state_load; waterbear_update ;;
     autoupdate) case "${2:-}" in
                     off|ask|auto) state_load; AUTO_UPDATE="$2"; state_save; ok "Auto-update: $AUTO_UPDATE" ;;

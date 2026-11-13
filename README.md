@@ -17,10 +17,14 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | | |
 |---|---|
 | **Name** | Waterbear |
-| **Version** | 1.2.5 |
+| **Version** | 1.3.0 |
 | **Author** | Thomas Cochran ([@ThomasCochran](https://github.com/ThomasCochran)) |
 | **Repository** | https://github.com/ThomasCochran/waterbear |
 | **Platform** | Arch Linux + Hyprland |
+
+**Works best on a fresh Arch install**, where there's nothing for it to work around. It's still built
+to go on top of an Arch you've been using: your old configs can be kept as a theme (**old_theme**), apps
+you already have are detected and left alone, and nothing is changed until you pick it in the menu.
 
 ## Requirements
 
@@ -41,6 +45,7 @@ Named after the tardigrade (a.k.a. waterbear): tiny, and nearly impossible to ki
 | Booting into a snapshot | **GRUB** as your boot loader | Snapshots are still taken; restore them from a live USB instead |
 | Text login on tty1 | **bash** as your login shell (Hyprland starts from `~/.bash_profile`), and no other login screen | Hyprland doesn't start by itself after you log in |
 | hyprlock login screen | A single-user computer. It **replaces** the login screen you have (SDDM, GDM…): that one is turned off, not removed | — |
+| tuigreet greeter | Nothing: works with any number of users. Like hyprlock, it **replaces** your current login screen (turned off, not removed) | — |
 
 
 ### What a snapshot does and doesn't undo
@@ -109,20 +114,22 @@ In checklists, **Space**, **x** or **Tab** ticks a box and **→** / Enter is do
 
 | | |
 |---|---|
-| **Desktop** | install the Waterbear desktop · re-apply configs · login style |
+| **Desktop** | install the Waterbear desktop · re-apply configs · login style (text, hyprlock or tuigreet) |
 | **Look & feel** | theme · dark mode · background · bar · prompt · shell |
-| **Install** | apps by category (Browsers, Editors, Dev tools, Terminal, Media & creative, Office, Sharing, Gaming, Extras) · web apps · search any package (official repos, or the AUR) · remove packages |
+| **Install** | apps by category (Browsers, Editors, Dev tools, AI tools, Terminal, Media & creative, Office, Sharing, Gaming, Extras) · bundles (Programmer, Work PC, Gamer) · web apps · search any package (official repos, or the AUR) · remove packages |
 | **Keyboard** | keybind set (Waterbear, **Omarchy** or Hyprland stock) · every shortcut · the menu shortcut on/off |
 | **System** | snapshots · firewall · screensaver & lock · monitors · Snapper / yay |
 | **Update** | update now · auto-update |
 
 Apps you already have show **✓ installed** and come pre-ticked, so you're never asked to install
-something twice. Apps that only exist in the AUR (like LocalSend on plain Arch) install yay first if
+something twice. **Bundles** tick a whole set at once (Programmer, Work PC, Gamer); untick anything you
+don't want, and a bundle never removes what you already have. Apps that only exist in the AUR (like LocalSend on plain Arch) install yay first if
 you say yes.
 
 ### Themes
 
-- **Built-in schemes:** Abyss, Ember, Hearth, Matrix, Nebula, Noir (pick its accent color)
+- **Built-in schemes:** Abyss, Dusk, Ember, Hearth, Matrix, Nebula, Neon, Noir (pick its accent color), Slate, Tapestry.
+  Dusk and Slate are the calm ones: a plain shadow instead of the neon glow around windows
 - **From a picture** (like Aether): pick any image and Waterbear makes a theme in its colors: background,
   accents and all 16 terminal colors. Then **save it to your themes** under a name, or **just try it**
   (save it later). It also asks if you want the picture as your background; you can say no
@@ -160,6 +167,7 @@ waterbear transparency 0 10 40 70   # apps on / not on, terminals on / not on (i
 waterbear bar islands     # dashboard | islands | terminal | none
 waterbear shell fish      # bash | fish: the shell your terminals open
 waterbear apps            # install apps, web apps, search any package
+waterbear bundle gamer    # a set of apps at once: programmer | work | gamer (untick what you don't want)
 waterbear monitors        # monitor order (left → right) and which workspaces go on which
 waterbear update          # snapshot → system update → newest Waterbear → refresh configs
 waterbear autoupdate ask  # off | ask | auto: check GitHub for a newer Waterbear (login + every 3 h)
@@ -196,21 +204,26 @@ If files in `~/.local/share/waterbear` were changed by hand, the update offers t
 ## What's included
 
 - **Hyprland** (0.57+ Lua config) with Waterbear's shortcuts, Omarchy-style ones, or Hyprland's stock ones
-- **Themes:** six built-in schemes, themes made from a picture or your own colors, and your old setup
+- **Themes:** ten built-in schemes, themes made from a picture or your own colors, and your old setup
 - **Shell:** bash or fish in your terminals (fish gets themed highlighting, plus the same prompt, aliases
   and fastfetch). Your login shell stays bash, since that's what starts Hyprland on tty1
 - **Backgrounds:** solid color, your own picture, Grid horizon, Orbit, the waterbear logo (drawn in your theme's colors),
   or live ones: cmatrix rain or cava sound bars running behind your windows (solid on battery by default)
 - **Status bars:** Dashboard, Islands, Terminal (each with a system tray), or none
+- **Login:** text on tty1, hyprlock as the login screen (one user), or the tuigreet greeter (any number of users)
 - **Lock screen** (hyprlock) and an optional **screensaver** (cmatrix or a big terminal clock)
 - **Snapper** snapshots in the GRUB boot menu, plus an optional weekly automatic snapshot
 - **Firewall** (ufw): incoming blocked except what you allow (SSH, Steam Remote Play, dev servers…)
-- **Apps by category:** Firefox, Chromium, Brave, Zen, Tor Browser, DuckDuckGo (as a web app + Super+S search) · Neovim + LazyVim, VS Code, Zed, Helix · Python,
-  Node.js, Rust, Go, Docker, lazygit, lazydocker, GitHub CLI · btop, power tools, yazi, tmux · Discord,
-  Signal, Spotify, mpv, GIMP, OBS · LibreOffice, Obsidian · LocalSend, KDE Connect · Steam (+ GPU drivers,
-  Proton-GE, GameMode, MangoHud) · and anything else from the repos or the AUR through package search
-- **Web apps:** add any website as an app with its own window and launcher entry (opens in a
-  Chromium-based browser if you have one, otherwise Firefox)
+- **Apps by category:** Firefox, Chromium, Brave, Zen, Tor Browser, DuckDuckGo (a web app, Super+S search, and
+  browsers that start on DuckDuckGo) · Neovim + LazyVim, VS Code, Zed, Helix · Python, Node.js, Rust, Go, Java,
+  C/C++, Zig, Docker, lazygit, lazydocker, GitHub CLI, SSH client + key, VirtualBox · Claude Code, OpenCode,
+  Gemini CLI, Codex CLI · btop, power tools, yazi, tmux · Discord, Signal, Spotify, mpv, GIMP, OBS ·
+  LibreOffice (+ Office-compatible fonts and spell-check), Obsidian · LocalSend, KDE Connect · Steam (+ GPU
+  drivers, Proton-GE, GameMode, MangoHud), Lutris, Heroic, Prism Launcher · and anything else from the repos
+  or the AUR through package search
+- **Web apps:** tick common ones (YouTube, Gmail, Calendar, WhatsApp…), turn your bookmarks into apps (export
+  them as an HTML file and drag it onto the menu), or add any website. Each gets its own window and launcher
+  entry (opens in a Chromium-based browser if you have one, otherwise Firefox)
 - Dark mode (optional), clipboard history, screenshots, night light, dropdown terminal
 
 ## Your own changes
@@ -258,3 +271,5 @@ Copy a file in `schemes/`, change `DESC` and the 21 colors in `PALETTE`
 To let people pick the accent (like Noir), also set `ACCENTS="name:hex ..."` and `ACCENT_DEFAULT=name`.
 The picked color replaces accent 2. `ACCENT_SLOTS="C1:0 C9:25"` makes terminal colors follow it too
 (slot:percent lighter), so the scheme doesn't keep its default accent anywhere.
+
+`GLOW=soft` gives windows a plain dark shadow instead of the neon halo in the accent color (like Slate and Dusk).

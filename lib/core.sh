@@ -102,13 +102,15 @@ scheme_accent_default() { ( ACCENT_DEFAULT=""; . "$(scheme_file "$1")"; echo "$A
 # Loads the palette for $1 into P_BG P_FG P_A P_B P_DIM P_C0..P_C15
 scheme_load() {
     local file; file=$(scheme_file "$1") || die "Unknown scheme '$1'. Options: $(scheme_list | tr '\n' ' ')"
-    local PALETTE DESC ACCENTS="" ACCENT_DEFAULT="" ACCENT_SLOTS="" p
+    local PALETTE DESC ACCENTS="" ACCENT_DEFAULT="" ACCENT_SLOTS="" GLOW="" p
     # shellcheck disable=SC1090
     . "$file"
     read -ra p <<< "$PALETTE"
     P_BG=${p[0]}; P_FG=${p[1]}; P_A=${p[2]}; P_B=${p[3]}; P_DIM=${p[4]}
     local i; for i in $(seq 0 15); do printf -v "P_C$i" '%s' "${p[$((i + 5))]}"; done
     P_NAME="$1"; P_RAIN="$P_A"
+    # GLOW="soft" in a scheme: a plain dark shadow around windows instead of the neon halo, and no inner glow
+    if [[ "$GLOW" == soft ]]; then P_SHADOW="55000000"; P_GLOW_ON=false; else P_SHADOW="55$P_A"; P_GLOW_ON=true; fi
     dark_vars
     opacity_vars
     # Schemes with a pickable accent: the chosen color becomes accent 2 (borders, cursor, clock, prompt)
@@ -180,7 +182,7 @@ render() {
                 -e "s/@@DIM@@/$P_DIM/g" -e "s/@@RAIN@@/$P_RAIN/g" -e "s/@@SCHEME_NAME@@/$P_NAME/g"
                 -e "s/@@GTK_THEME@@/$T_GTK/g" -e "s/@@PREFER_DARK@@/$T_PREFER/g" -e "s/@@COLOR_SCHEME@@/$T_CS/g"
                 -e "s/@@OP_ACTIVE@@/${T_OPA:-1.00}/g" -e "s/@@OP_INACTIVE@@/${T_OPI:-0.92}/g" -e "s/@@OP_TERM_INACTIVE@@/${T_OPK:-0.92}/g" -e "s/@@OP_TERM@@/${T_OPT:-0.92}/g"
-                -e "s/@@ICON_THEME@@/${T_ICONS:-Adwaita}/g" -e "s/@@A_DARK@@/$(hex_darken "$P_A" 25)/g" -e "s/@@B_DARK@@/$(hex_darken "$P_B" 25)/g")
+                -e "s/@@ICON_THEME@@/${T_ICONS:-Adwaita}/g" -e "s/@@SHADOW@@/${P_SHADOW:-55$P_A}/g" -e "s/@@GLOW_ON@@/${P_GLOW_ON:-true}/g" -e "s/@@A_DARK@@/$(hex_darken "$P_A" 25)/g" -e "s/@@B_DARK@@/$(hex_darken "$P_B" 25)/g")
     local i v; for i in $(seq 15 -1 0); do v="P_C$i"; args+=(-e "s/@@C$i@@/${!v}/g"); done
     mkdir -p "$(dirname "$dest")"
     sed "${args[@]}" "$src" > "$dest"
