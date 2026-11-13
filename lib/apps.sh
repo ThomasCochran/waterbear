@@ -400,11 +400,14 @@ webapp_list() {  # prints "file<TAB>name<TAB>url" for each web app you added
     done
 }
 
+exec_quote() {  # exec_quote STRING — STRING as a quoted Exec= argument (desktop entry spec)
+    # % is written %%, and " ` $ \\ are escaped inside the quotes
+    local v="${1//\\/\\\\}"; v="${v//\"/\\\"}"; v="${v//\`/\\\`}"; v="${v//\$/\\\$}"
+    printf '"%s"' "${v//%/%%}"
+}
+
 webapp_write() {  # webapp_write NAME URL SLUG — the launcher entry for a web app
-    local name="$1" url="$2" slug="$3" icon=web-browser f exec_url
-    # Exec= rules (desktop entry spec): % is written %%, and " ` $ \\ are escaped inside quotes
-    exec_url="${url//\\/\\\\}"; exec_url="${exec_url//\"/\\\"}"; exec_url="${exec_url//\`/\\\`}"; exec_url="${exec_url//\$/\\\$}"
-    exec_url="${exec_url//%/%%}"
+    local name="$1" url="$2" slug="$3" icon=web-browser f
     [[ -f "/usr/share/icons/Papirus/64x64/apps/$slug.svg" ]] && icon="$slug"
     f="$WEBAPP_DIR/waterbear-webapp-$slug.desktop"
     mkdir -p "$WEBAPP_DIR"
@@ -413,11 +416,21 @@ webapp_write() {  # webapp_write NAME URL SLUG — the launcher entry for a web 
 Type=Application
 Name=$name
 Comment=Web app: $url (added in Waterbear → Install → Web apps)
-Exec=waterbear webapp-open "$exec_url"
+Exec=$(exec_quote "$WB_BIN/waterbear") webapp-open $(exec_quote "$url")
 Icon=$icon
 Categories=Network;WebBrowser;
 X-Waterbear-URL=$url
 DESKTOP
+}
+
+# Older launchers ran a bare `waterbear`, which isn't on the desktop's PATH
+# (~/.local/bin is only added by your shell), so the app launcher showed "failed to execute".
+webapps_fix_exec() {
+    local f name url
+    while IFS=$'\t' read -r f name url; do
+        grep -q '^Exec=waterbear ' "$f" || continue
+        f="${f##*/waterbear-webapp-}"; webapp_write "$name" "$url" "${f%.desktop}"
+    done < <(webapp_list)
 }
 
 webapp_add() {

@@ -157,7 +157,7 @@ hl.gesture({
 require("binds")
 
 -- Waterbear menu (every keybind set; turn it off in: menu → Keyboard)
-hl.bind("SUPER + ALT + space", hl.dsp.exec_cmd("kitty --class waterbear-menu -e waterbear"))   -- @@MENU_KEY@@
+hl.bind("SUPER + ALT + space", hl.dsp.exec_cmd("kitty --class waterbear-menu -e ~/.local/bin/waterbear"))   -- @@MENU_KEY@@
 
 ----------------------
 ---- WINDOW RULES ----

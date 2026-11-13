@@ -7,7 +7,7 @@ local terminal = "kitty"
 local browser  = "firefox"
 local files    = "thunar"
 local bin      = "~/.local/bin/"
-local menu     = "kitty --class waterbear-menu -e waterbear"
+local menu     = "kitty --class waterbear-menu -e ~/.local/bin/waterbear"
 
 local function key(combo) return mainMod .. " + " .. combo end
 local function tui(cmd) return terminal .. " -e " .. cmd end
@@ -34,7 +34,7 @@ hl.bind(key("CTRL + T"),             hl.dsp.exec_cmd(tui("btop")))              
 hl.bind(key("space"),                hl.dsp.exec_cmd("pkill -x rofi || rofi -show drun"))   -- launch apps
 hl.bind(key("CTRL + E"),             hl.dsp.exec_cmd("pkill -x rofi || rofi -modi emoji -show emoji"))
 hl.bind(key("CTRL + V"),             hl.dsp.exec_cmd(bin .. "clipboard.sh"))            -- clipboard history
-hl.bind(key("K"),                    hl.dsp.exec_cmd("kitty --class keyhelp -e waterbear shortcuts"))
+hl.bind(key("K"),                    hl.dsp.exec_cmd("kitty --class keyhelp -e ~/.local/bin/waterbear shortcuts"))
 hl.bind(key("Escape"),               hl.dsp.exec_cmd(bin .. "powermenu.sh"))            -- system menu
 hl.bind("XF86PowerOff",              hl.dsp.exec_cmd(bin .. "powermenu.sh"), { locked = true })
 hl.bind(key("CTRL + space"),         hl.dsp.exec_cmd(menu .. " background"))            -- background menu

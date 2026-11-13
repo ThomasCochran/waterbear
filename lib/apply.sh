@@ -68,6 +68,7 @@ link_bins() {  # helper scripts + the waterbear command go in ~/.local/bin (as l
     local f
     for f in "$WB_HOME"/bin/*; do ln -sf "$f" "$WB_BIN/$(basename "$f")"; done
     ln -sf "$WB_HOME/waterbear" "$WB_BIN/waterbear"
+    webapps_fix_exec   # older web app launchers ran a bare `waterbear` (not on the desktop's PATH)
 }
 
 write_hypridle() {
