@@ -13,8 +13,11 @@ require("monitors")
 ---- AUTOSTART ----
 -------------------
 hl.on("hyprland.start", function()
-    -- Login screen: when greetd started this session, lock with hyprlock before anything shows
-    hl.exec_cmd([[[ -n "$WATERBEAR_LOCK_ON_START" ] && hyprlock --immediate-render]])
+    -- Login screen: when greetd started this session, lock with hyprlock before anything shows.
+    -- Use `test`, never `[ … ]`, at the start of exec_cmd: Hyprland reads a leading [...] as exec
+    -- rules (like "[workspace 2] kitty"), so the check gets eaten and the command never runs.
+    -- If hyprlock dies or is missing (non-zero exit), end the session instead of leaving it unlocked.
+    hl.exec_cmd([[test -n "$WATERBEAR_LOCK_ON_START" && { hyprlock --immediate-render || hyprctl dispatch 'hl.dsp.exit()'; }]])
     hl.exec_cmd("systemctl --user start hyprpolkitagent")
     -- Dark / light mode for GTK apps and anything that follows the system theme (menu → Look & feel → Dark mode)
     hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme @@COLOR_SCHEME@@")
@@ -26,7 +29,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("hypridle")                                 -- idle lock / screen off / suspend
     hl.exec_cmd("wl-paste --type text --watch cliphist store")
     hl.exec_cmd("wl-paste --type image --watch cliphist store")
-    hl.exec_cmd("[ -x ~/.local/bin/weekly-snapshot-login.sh ] && ~/.local/bin/weekly-snapshot-login.sh")  -- weekly snapshot (if enabled)
+    hl.exec_cmd("test -x ~/.local/bin/weekly-snapshot-login.sh && ~/.local/bin/weekly-snapshot-login.sh")  -- weekly snapshot (if enabled)
     hl.exec_cmd("~/.local/bin/waterbear autoupdate")               -- check GitHub for a newer Waterbear (menu → Auto-update)
     hl.exec_cmd("kitty")                                    -- open a terminal on login (shows fastfetch, like every new one)
 end)
